@@ -1,0 +1,17 @@
+# Track 1: Physics-Based AI — Core Dependencies
+# Install with: uv pip install -r requirements.txt
+
+# Deep learning & automatic differentiation
+torch==2.13.0
+
+# Numerical computing
+numpy==2.5.1
+
+# Visualization
+matplotlib==3.11.1
+
+# Jupyter environment
+jupyter==1.1.1
+jupyterlab==4.6.2
+notebook==7.6.1
+ipykernel==7.3.0
