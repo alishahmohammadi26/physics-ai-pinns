@@ -55,7 +55,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 ### 2. Create the virtual environment
 
 ```bash
-cd projects/Track1_Physics_AI
+cd projects/Physics_AI
 uv venv --python 3.11
 ```
 
