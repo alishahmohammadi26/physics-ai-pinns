@@ -1838,3 +1838,1828 @@ It should contain:
 - solutions;
 - a biological drug-elimination interpretation;
 - a first inverse parameter-estimation extension.
+
+---
+
+# 21. Complete Code Laboratory
+
+This section converts the roadmap above into executable reference programs. Every required example is written for CPU first. Where an NVIDIA BioNeMo workflow genuinely requires supported NVIDIA GPU hardware, the document provides both:
+
+1. a runnable CPU educational substitute; and
+2. a clearly marked optional GPU workflow.
+
+> **Version note:** PhysicsNeMo 2.x uses ordinary PyTorch training loops and the upstreamed `physicsnemo.sym` package. Older tutorials based on `Domain`, `Solver`, `Constraint`, `Key`, or pre-built symbolic PDE classes may not match the current API.
+
+## 21.1 Shared CPU utilities
+
+Save the following as `pinn_utils.py`. All later examples reuse it.
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Callable, Iterable, Sequence
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
+from torch import nn
+
+Tensor = torch.Tensor
+DEVICE = torch.device("cpu")
+DTYPE = torch.float32
+
+
+def seed_everything(seed: int = 42) -> None:
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+
+def grad(y: Tensor, x: Tensor) -> Tensor:
+    """Return dy/dx while retaining the graph for higher derivatives."""
+    return torch.autograd.grad(
+        outputs=y,
+        inputs=x,
+        grad_outputs=torch.ones_like(y),
+        create_graph=True,
+        retain_graph=True,
+    )[0]
+
+
+def mse(x: Tensor) -> Tensor:
+    return torch.mean(x**2)
+
+
+class MLP(nn.Module):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        hidden: Sequence[int] = (64, 64, 64),
+        activation: type[nn.Module] = nn.Tanh,
+    ) -> None:
+        super().__init__()
+        layers: list[nn.Module] = []
+        width = in_features
+        for next_width in hidden:
+            layers.extend([nn.Linear(width, next_width), activation()])
+            width = next_width
+        layers.append(nn.Linear(width, out_features))
+        self.net = nn.Sequential(*layers)
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        for module in self.modules():
+            if isinstance(module, nn.Linear):
+                nn.init.xavier_normal_(module.weight)
+                nn.init.zeros_(module.bias)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.net(x)
+
+
+class NormalizedMLP(MLP):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        lower: Sequence[float],
+        upper: Sequence[float],
+        hidden: Sequence[int] = (64, 64, 64),
+    ) -> None:
+        super().__init__(in_features, out_features, hidden)
+        self.register_buffer("lower", torch.tensor(lower, dtype=DTYPE))
+        self.register_buffer("upper", torch.tensor(upper, dtype=DTYPE))
+
+    def forward(self, x: Tensor) -> Tensor:
+        z = 2.0 * (x - self.lower) / (self.upper - self.lower) - 1.0
+        return self.net(z)
+
+
+@dataclass
+class TrainHistory:
+    total: list[float]
+    terms: dict[str, list[float]]
+
+
+def train(
+    model: nn.Module,
+    loss_fn: Callable[[], tuple[Tensor, dict[str, Tensor]]],
+    epochs: int = 5000,
+    lr: float = 1e-3,
+    extra_parameters: Iterable[nn.Parameter] = (),
+    print_every: int = 500,
+) -> TrainHistory:
+    parameters = list(model.parameters()) + list(extra_parameters)
+    optimizer = torch.optim.Adam(parameters, lr=lr)
+    history = TrainHistory(total=[], terms={})
+
+    for epoch in range(epochs):
+        optimizer.zero_grad(set_to_none=True)
+        loss, terms = loss_fn()
+        if not torch.isfinite(loss):
+            raise FloatingPointError(f"Non-finite loss at epoch {epoch}: {loss}")
+        loss.backward()
+        optimizer.step()
+
+        history.total.append(float(loss.detach()))
+        for name, value in terms.items():
+            history.terms.setdefault(name, []).append(float(value.detach()))
+
+        if epoch % print_every == 0 or epoch == epochs - 1:
+            details = " | ".join(
+                f"{name}={float(value.detach()):.3e}"
+                for name, value in terms.items()
+            )
+            print(f"epoch={epoch:6d} | total={float(loss.detach()):.3e} | {details}")
+
+    return history
+
+
+def plot_history(history: TrainHistory, title: str = "Training loss") -> None:
+    plt.figure(figsize=(8, 4.5))
+    plt.semilogy(history.total, label="total")
+    for name, values in history.terms.items():
+        plt.semilogy(values, label=name, alpha=0.8)
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title(title)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+
+def relative_l2(prediction: Tensor, reference: Tensor) -> float:
+    numerator = torch.linalg.vector_norm(prediction - reference)
+    denominator = torch.linalg.vector_norm(reference).clamp_min(1e-12)
+    return float((numerator / denominator).detach())
+```
+
+## 21.2 Supervised neural-network warm-up
+
+This program learns the mapping $y=2x+1$ from data. It does not use a differential equation yet.
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, seed_everything
+
+seed_everything()
+x = torch.linspace(-1.0, 1.0, 100, device=DEVICE).reshape(-1, 1)
+y = 2.0 * x + 1.0
+
+model = MLP(1, 1, hidden=(32, 32)).to(DEVICE)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+for epoch in range(2000):
+    optimizer.zero_grad(set_to_none=True)
+    prediction = model(x)
+    loss = nn.functional.mse_loss(prediction, y)
+    loss.backward()
+    optimizer.step()
+    if epoch % 200 == 0:
+        print(epoch, float(loss.detach()))
+
+with torch.no_grad():
+    prediction = model(x)
+
+plt.plot(x.numpy(), y.numpy(), label="exact")
+plt.plot(x.numpy(), prediction.numpy(), "--", label="network")
+plt.legend()
+plt.grid(True)
+plt.show()
+```
+
+---
+
+# 22. Complete ODE Programs
+
+## 22.1 Exponential decay
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, relative_l2, seed_everything, train
+
+seed_everything()
+model = MLP(1, 1).to(DEVICE)
+t_f = torch.linspace(0.0, 5.0, 200, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+
+
+def loss_fn():
+    u = model(t_f)
+    residual = grad(u, t_f) + u
+    physics = mse(residual)
+    initial = mse(model(t0) - 1.0)
+    total = physics + 20.0 * initial
+    return total, {"physics": physics, "initial": initial}
+
+
+train(model, loss_fn, epochs=4000)
+
+t = torch.linspace(0.0, 5.0, 400, device=DEVICE).reshape(-1, 1)
+with torch.no_grad():
+    prediction = model(t)
+reference = torch.exp(-t)
+print("relative L2:", relative_l2(prediction, reference))
+
+plt.plot(t.numpy(), reference.numpy(), label="exact")
+plt.plot(t.numpy(), prediction.numpy(), "--", label="PINN")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 22.2 Logistic growth
+
+The hard output transform below guarantees $N(0)=N_0$ exactly.
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+r, K, N0 = 1.0, 10.0, 0.5
+base = MLP(1, 1).to(DEVICE)
+
+
+def population(t):
+    return N0 + t * base(t)
+
+
+t_f = torch.linspace(0.0, 8.0, 250, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+
+
+def loss_fn():
+    N = population(t_f)
+    residual = grad(N, t_f) - r * N * (1.0 - N / K)
+    physics = mse(residual)
+    positivity = mse(torch.relu(-N))
+    return physics + positivity, {"physics": physics, "positivity": positivity}
+
+
+train(base, loss_fn, epochs=6000)
+
+t = torch.linspace(0.0, 8.0, 400).reshape(-1, 1)
+with torch.no_grad():
+    pred = population(t)
+exact = K / (1.0 + ((K - N0) / N0) * torch.exp(-r * t))
+plt.plot(t, exact, label="exact")
+plt.plot(t, pred, "--", label="PINN")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 22.3 Damped harmonic oscillator
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+m, c, k = 1.0, 0.4, 4.0
+x0, v0 = 1.0, 0.0
+model = MLP(1, 1, hidden=(64, 64, 64)).to(DEVICE)
+t_f = torch.linspace(0.0, 10.0, 300, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE, requires_grad=True)
+
+
+def loss_fn():
+    x = model(t_f)
+    x_t = grad(x, t_f)
+    x_tt = grad(x_t, t_f)
+    residual = m * x_tt + c * x_t + k * x
+    physics = mse(residual)
+
+    x_initial = model(t0)
+    v_initial = grad(x_initial, t0)
+    initial = mse(x_initial - x0) + mse(v_initial - v0)
+    return physics + 50.0 * initial, {"physics": physics, "initial": initial}
+
+
+train(model, loss_fn, epochs=8000)
+
+t = torch.linspace(0.0, 10.0, 500).reshape(-1, 1)
+with torch.no_grad():
+    pred = model(t)
+plt.plot(t, pred)
+plt.xlabel("t"); plt.ylabel("x(t)"); plt.grid(True); plt.show()
+```
+
+## 22.4 Lotka-Volterra system
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+alpha, beta, delta, gamma = 1.5, 1.0, 0.75, 1.0
+x0, y0 = 1.0, 1.0
+model = MLP(1, 2, hidden=(96, 96, 96)).to(DEVICE)
+t_f = torch.linspace(0.0, 12.0, 400, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+
+
+def loss_fn():
+    states = model(t_f)
+    x, y = states[:, 0:1], states[:, 1:2]
+    x_t, y_t = grad(x, t_f), grad(y, t_f)
+    rx = x_t - (alpha * x - beta * x * y)
+    ry = y_t - (delta * x * y - gamma * y)
+    physics = mse(rx) + mse(ry)
+    initial = mse(model(t0) - torch.tensor([[x0, y0]], device=DEVICE))
+    positivity = mse(torch.relu(-states))
+    return physics + 50.0 * initial + positivity, {
+        "physics": physics, "initial": initial, "positivity": positivity
+    }
+
+
+train(model, loss_fn, epochs=12000, lr=5e-4)
+t = torch.linspace(0.0, 12.0, 600).reshape(-1, 1)
+with torch.no_grad():
+    states = model(t)
+plt.plot(t, states[:, 0], label="prey")
+plt.plot(t, states[:, 1], label="predator")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 22.5 SIR epidemiological system
+
+The output is normalized so $S+I+R=1$ by applying `softmax`.
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+beta, gamma = 0.8, 0.25
+initial_state = torch.tensor([[0.99, 0.01, 0.0]], device=DEVICE)
+base = MLP(1, 3, hidden=(96, 96, 96)).to(DEVICE)
+t_f = torch.linspace(0.0, 40.0, 500, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+
+
+def states(t):
+    return nn.functional.softmax(base(t), dim=1)
+
+
+def loss_fn():
+    y = states(t_f)
+    S, I, R = y[:, 0:1], y[:, 1:2], y[:, 2:3]
+    rS = grad(S, t_f) + beta * S * I
+    rI = grad(I, t_f) - beta * S * I + gamma * I
+    rR = grad(R, t_f) - gamma * I
+    physics = mse(rS) + mse(rI) + mse(rR)
+    initial = mse(states(t0) - initial_state)
+    return physics + 100.0 * initial, {"physics": physics, "initial": initial}
+
+
+train(base, loss_fn, epochs=12000, lr=5e-4)
+t = torch.linspace(0.0, 40.0, 800).reshape(-1, 1)
+with torch.no_grad():
+    y = states(t)
+for i, label in enumerate(["S", "I", "R"]):
+    plt.plot(t, y[:, i], label=label)
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 22.6 Two-compartment pharmacokinetics
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+k10, k12, k21 = 0.25, 0.7, 0.4
+initial = torch.tensor([[10.0, 0.0]], device=DEVICE)
+model = MLP(1, 2, hidden=(96, 96, 96)).to(DEVICE)
+t_f = torch.linspace(0.0, 24.0, 500, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+
+
+def loss_fn():
+    C = model(t_f)
+    C1, C2 = C[:, 0:1], C[:, 1:2]
+    r1 = grad(C1, t_f) + (k10 + k12) * C1 - k21 * C2
+    r2 = grad(C2, t_f) - k12 * C1 + k21 * C2
+    physics = mse(r1) + mse(r2)
+    ic = mse(model(t0) - initial)
+    positive = mse(torch.relu(-C))
+    return physics + 100.0 * ic + positive, {
+        "physics": physics, "initial": ic, "positivity": positive
+    }
+
+
+train(model, loss_fn, epochs=12000, lr=5e-4)
+t = torch.linspace(0.0, 24.0, 700).reshape(-1, 1)
+with torch.no_grad():
+    C = model(t)
+plt.plot(t, C[:, 0], label="central")
+plt.plot(t, C[:, 1], label="peripheral")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 22.7 Michaelis-Menten substrate depletion
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+Vmax, Km, S0 = 2.0, 1.5, 10.0
+base = MLP(1, 1).to(DEVICE)
+t_f = torch.linspace(0.0, 8.0, 300, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+
+
+def substrate(t):
+    return torch.nn.functional.softplus(S0 + t * base(t))
+
+
+def loss_fn():
+    S = substrate(t_f)
+    residual = grad(S, t_f) + Vmax * S / (Km + S)
+    physics = mse(residual)
+    return physics, {"physics": physics}
+
+
+train(base, loss_fn, epochs=8000)
+t = torch.linspace(0.0, 8.0, 400).reshape(-1, 1)
+with torch.no_grad():
+    S = substrate(t)
+plt.plot(t, S); plt.grid(True); plt.show()
+```
+
+## 22.8 Gene-regulation system
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+alpha, K, hill_n = 4.0, 1.0, 2.0
+gamma_m, beta, gamma_p = 0.7, 1.2, 0.4
+initial = torch.tensor([[0.1, 0.1]], device=DEVICE)
+model = MLP(1, 2, hidden=(96, 96, 96)).to(DEVICE)
+t_f = torch.linspace(0.0, 20.0, 500, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+
+
+def loss_fn():
+    y = model(t_f)
+    m, p = y[:, 0:1], y[:, 1:2]
+    rm = grad(m, t_f) - alpha / (1.0 + (p / K) ** hill_n) + gamma_m * m
+    rp = grad(p, t_f) - beta * m + gamma_p * p
+    physics = mse(rm) + mse(rp)
+    ic = mse(model(t0) - initial)
+    positive = mse(torch.relu(-y))
+    return physics + 50.0 * ic + positive, {
+        "physics": physics, "initial": ic, "positivity": positive
+    }
+
+
+train(model, loss_fn, epochs=12000, lr=5e-4)
+t = torch.linspace(0.0, 20.0, 600).reshape(-1, 1)
+with torch.no_grad():
+    y = model(t)
+plt.plot(t, y[:, 0], label="mRNA")
+plt.plot(t, y[:, 1], label="protein")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 22.9 Robertson stiff kinetics
+
+A naive global PINN often struggles with this problem. The code uses logarithmically spaced collocation times and conservation loss. It is an advanced CPU example and may require tuning.
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+base = MLP(1, 3, hidden=(128, 128, 128, 128)).to(DEVICE)
+log_t = torch.linspace(-6.0, 3.0, 1200, device=DEVICE).reshape(-1, 1)
+log_t.requires_grad_(True)
+t0 = torch.tensor([[-6.0]], device=DEVICE)
+initial = torch.tensor([[1.0, 0.0, 0.0]], device=DEVICE)
+
+
+def state(log_time):
+    return nn.functional.softmax(base(log_time), dim=1)
+
+
+def loss_fn():
+    t = 10.0**log_t
+    y = state(log_t)
+    y1, y2, y3 = y[:, 0:1], y[:, 1:2], y[:, 2:3]
+    scale = t * torch.log(torch.tensor(10.0, device=DEVICE))
+    y1_t = grad(y1, log_t) / scale
+    y2_t = grad(y2, log_t) / scale
+    y3_t = grad(y3, log_t) / scale
+    r1 = y1_t + 0.04 * y1 - 1.0e4 * y2 * y3
+    r2 = y2_t - 0.04 * y1 + 1.0e4 * y2 * y3 + 3.0e7 * y2**2
+    r3 = y3_t - 3.0e7 * y2**2
+    physics = mse(r1) + mse(r2) + mse(r3)
+    ic = mse(state(t0) - initial)
+    return physics + 100.0 * ic, {"physics": physics, "initial": ic}
+
+
+train(base, loss_fn, epochs=20000, lr=2e-4)
+with torch.no_grad():
+    y = state(log_t)
+plt.semilogx((10.0**log_t).detach(), y[:, 0].detach(), label="y1")
+plt.semilogx((10.0**log_t).detach(), y[:, 1].detach(), label="y2")
+plt.semilogx((10.0**log_t).detach(), y[:, 2].detach(), label="y3")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+---
+
+# 23. Complete PDE Programs
+
+## 23.1 One-dimensional Poisson equation
+
+We solve $u_{xx}=-\pi^2\sin(\pi x)$ on $x\in[0,1]$ with $u(0)=u(1)=0$. The exact solution is $u(x)=\sin(\pi x)$.
+
+```python
+import math
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, relative_l2, seed_everything, train
+
+seed_everything()
+model = MLP(1, 1).to(DEVICE)
+x_f = torch.linspace(0.0, 1.0, 250, device=DEVICE).reshape(-1, 1)
+x_f.requires_grad_(True)
+x_b = torch.tensor([[0.0], [1.0]], device=DEVICE)
+
+
+def loss_fn():
+    u = model(x_f)
+    u_xx = grad(grad(u, x_f), x_f)
+    forcing = -(math.pi**2) * torch.sin(math.pi * x_f)
+    physics = mse(u_xx - forcing)
+    boundary = mse(model(x_b))
+    return physics + 50.0 * boundary, {"physics": physics, "boundary": boundary}
+
+
+train(model, loss_fn, epochs=6000)
+x = torch.linspace(0.0, 1.0, 500).reshape(-1, 1)
+with torch.no_grad():
+    pred = model(x)
+exact = torch.sin(math.pi * x)
+print("relative L2:", relative_l2(pred, exact))
+plt.plot(x, exact, label="exact")
+plt.plot(x, pred, "--", label="PINN")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 23.2 One-dimensional heat equation
+
+We solve $u_t=\alpha u_{xx}$ with $u(x,0)=\sin(\pi x)$ and zero Dirichlet boundaries.
+
+```python
+import math
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+alpha = 0.1
+model = NormalizedMLP(2, 1, lower=(0.0, 0.0), upper=(1.0, 1.0)).to(DEVICE)
+
+Nf = 3000
+xt_f = torch.rand(Nf, 2, device=DEVICE)
+xt_f.requires_grad_(True)
+
+x0 = torch.rand(400, 1, device=DEVICE)
+t0 = torch.zeros_like(x0)
+xt0 = torch.cat([x0, t0], dim=1)
+u0 = torch.sin(math.pi * x0)
+
+tb = torch.rand(400, 1, device=DEVICE)
+xb0 = torch.zeros_like(tb)
+xb1 = torch.ones_like(tb)
+left = torch.cat([xb0, tb], dim=1)
+right = torch.cat([xb1, tb], dim=1)
+
+
+def loss_fn():
+    u = model(xt_f)
+    du = grad(u, xt_f)
+    u_x, u_t = du[:, 0:1], du[:, 1:2]
+    u_xx = grad(u_x, xt_f)[:, 0:1]
+    physics = mse(u_t - alpha * u_xx)
+    initial = mse(model(xt0) - u0)
+    boundary = mse(model(left)) + mse(model(right))
+    total = physics + 20.0 * initial + 20.0 * boundary
+    return total, {"physics": physics, "initial": initial, "boundary": boundary}
+
+
+train(model, loss_fn, epochs=10000, lr=7e-4)
+
+x = torch.linspace(0.0, 1.0, 160)
+t = torch.linspace(0.0, 1.0, 120)
+xx, tt = torch.meshgrid(x, t, indexing="ij")
+points = torch.stack([xx.reshape(-1), tt.reshape(-1)], dim=1)
+with torch.no_grad():
+    U = model(points).reshape(xx.shape)
+plt.contourf(tt, xx, U, levels=40)
+plt.xlabel("t"); plt.ylabel("x"); plt.colorbar(label="u"); plt.show()
+```
+
+## 23.3 Wave equation
+
+```python
+import math
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+c = 1.0
+model = NormalizedMLP(2, 1, lower=(0.0, 0.0), upper=(1.0, 1.0), hidden=(96, 96, 96)).to(DEVICE)
+xt_f = torch.rand(4000, 2, device=DEVICE, requires_grad=True)
+
+x0 = torch.rand(500, 1, device=DEVICE)
+xt0 = torch.cat([x0, torch.zeros_like(x0)], dim=1)
+xt0.requires_grad_(True)
+
+tb = torch.rand(500, 1, device=DEVICE)
+left = torch.cat([torch.zeros_like(tb), tb], dim=1)
+right = torch.cat([torch.ones_like(tb), tb], dim=1)
+
+
+def loss_fn():
+    u = model(xt_f)
+    du = grad(u, xt_f)
+    u_x, u_t = du[:, 0:1], du[:, 1:2]
+    u_xx = grad(u_x, xt_f)[:, 0:1]
+    u_tt = grad(u_t, xt_f)[:, 1:2]
+    physics = mse(u_tt - c**2 * u_xx)
+
+    u_initial = model(xt0)
+    initial_grad = grad(u_initial, xt0)
+    displacement = mse(u_initial - torch.sin(math.pi * x0))
+    velocity = mse(initial_grad[:, 1:2])
+    boundary = mse(model(left)) + mse(model(right))
+    total = physics + 20.0 * (displacement + velocity + boundary)
+    return total, {
+        "physics": physics,
+        "displacement": displacement,
+        "velocity": velocity,
+        "boundary": boundary,
+    }
+
+
+train(model, loss_fn, epochs=14000, lr=5e-4)
+x = torch.linspace(0.0, 1.0, 200).reshape(-1, 1)
+for time_value in [0.0, 0.25, 0.5, 0.75, 1.0]:
+    points = torch.cat([x, torch.full_like(x, time_value)], dim=1)
+    with torch.no_grad():
+        plt.plot(x, model(points), label=f"t={time_value}")
+plt.legend(); plt.grid(True); plt.show()
+```
+
+## 23.4 Burgers equation
+
+This is a compact educational implementation. Shock-like regions may need more points, Fourier features, or adaptive sampling.
+
+```python
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+nu = 0.01 / torch.pi
+model = NormalizedMLP(2, 1, lower=(-1.0, 0.0), upper=(1.0, 1.0), hidden=(128, 128, 128)).to(DEVICE)
+
+x = 2.0 * torch.rand(6000, 1, device=DEVICE) - 1.0
+t = torch.rand(6000, 1, device=DEVICE)
+xt_f = torch.cat([x, t], dim=1).requires_grad_(True)
+
+x0 = 2.0 * torch.rand(600, 1, device=DEVICE) - 1.0
+initial_points = torch.cat([x0, torch.zeros_like(x0)], dim=1)
+initial_values = -torch.sin(torch.pi * x0)
+
+tb = torch.rand(600, 1, device=DEVICE)
+left = torch.cat([-torch.ones_like(tb), tb], dim=1)
+right = torch.cat([torch.ones_like(tb), tb], dim=1)
+
+
+def loss_fn():
+    u = model(xt_f)
+    du = grad(u, xt_f)
+    u_x, u_t = du[:, 0:1], du[:, 1:2]
+    u_xx = grad(u_x, xt_f)[:, 0:1]
+    physics = mse(u_t + u * u_x - nu * u_xx)
+    initial = mse(model(initial_points) - initial_values)
+    boundary = mse(model(left)) + mse(model(right))
+    return physics + 20.0 * initial + 20.0 * boundary, {
+        "physics": physics, "initial": initial, "boundary": boundary
+    }
+
+
+train(model, loss_fn, epochs=16000, lr=5e-4)
+
+xg = torch.linspace(-1.0, 1.0, 200)
+tg = torch.linspace(0.0, 1.0, 150)
+xx, tt = torch.meshgrid(xg, tg, indexing="ij")
+points = torch.stack([xx.reshape(-1), tt.reshape(-1)], dim=1)
+with torch.no_grad():
+    U = model(points).reshape(xx.shape)
+plt.contourf(tt, xx, U, levels=50)
+plt.xlabel("t"); plt.ylabel("x"); plt.colorbar(); plt.show()
+```
+
+## 23.5 Reaction-diffusion equation
+
+```python
+import math
+import matplotlib.pyplot as plt
+import torch
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+D, k = 0.05, 0.4
+model = NormalizedMLP(2, 1, lower=(0.0, 0.0), upper=(1.0, 2.0)).to(DEVICE)
+xt_f = torch.cat([
+    torch.rand(4000, 1, device=DEVICE),
+    2.0 * torch.rand(4000, 1, device=DEVICE),
+], dim=1).requires_grad_(True)
+
+x0 = torch.rand(500, 1, device=DEVICE)
+initial_points = torch.cat([x0, torch.zeros_like(x0)], dim=1)
+initial_values = torch.sin(math.pi * x0)
+
+tb = 2.0 * torch.rand(500, 1, device=DEVICE)
+left = torch.cat([torch.zeros_like(tb), tb], dim=1)
+right = torch.cat([torch.ones_like(tb), tb], dim=1)
+
+
+def loss_fn():
+    C = model(xt_f)
+    dC = grad(C, xt_f)
+    C_x, C_t = dC[:, 0:1], dC[:, 1:2]
+    C_xx = grad(C_x, xt_f)[:, 0:1]
+    physics = mse(C_t - D * C_xx + k * C)
+    initial = mse(model(initial_points) - initial_values)
+    boundary = mse(model(left)) + mse(model(right))
+    return physics + 20.0 * initial + 20.0 * boundary, {
+        "physics": physics, "initial": initial, "boundary": boundary
+    }
+
+
+train(model, loss_fn, epochs=10000)
+```
+
+## 23.6 Fisher-KPP equation
+
+```python
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+D, r = 0.01, 2.0
+base = NormalizedMLP(2, 1, lower=(-1.0, 0.0), upper=(1.0, 1.0), hidden=(96, 96, 96)).to(DEVICE)
+
+
+def field(points):
+    return torch.sigmoid(base(points))
+
+x = 2.0 * torch.rand(5000, 1) - 1.0
+t = torch.rand(5000, 1)
+xt_f = torch.cat([x, t], dim=1).to(DEVICE).requires_grad_(True)
+
+x0 = 2.0 * torch.rand(600, 1, device=DEVICE) - 1.0
+xt0 = torch.cat([x0, torch.zeros_like(x0)], dim=1)
+u0 = torch.exp(-40.0 * (x0 + 0.5) ** 2)
+
+
+def loss_fn():
+    u = field(xt_f)
+    du = grad(u, xt_f)
+    u_x, u_t = du[:, 0:1], du[:, 1:2]
+    u_xx = grad(u_x, xt_f)[:, 0:1]
+    physics = mse(u_t - D * u_xx - r * u * (1.0 - u))
+    initial = mse(field(xt0) - u0)
+    return physics + 20.0 * initial, {"physics": physics, "initial": initial}
+
+
+train(base, loss_fn, epochs=12000)
+```
+
+## 23.7 Coupled tumor-drug PDE
+
+This small one-dimensional model predicts tumor density $n(x,t)$ and drug concentration $C(x,t)$.
+
+```python
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+Dn, Dc = 0.002, 0.02
+growth, capacity, kill, clearance = 1.0, 1.0, 1.2, 0.3
+base = NormalizedMLP(2, 2, lower=(0.0, 0.0), upper=(1.0, 2.0), hidden=(128, 128, 128)).to(DEVICE)
+
+
+def fields(points):
+    raw = base(points)
+    n = torch.sigmoid(raw[:, 0:1])
+    C = nn.functional.softplus(raw[:, 1:2])
+    return n, C
+
+xt_f = torch.cat([torch.rand(7000, 1), 2.0 * torch.rand(7000, 1)], dim=1).to(DEVICE)
+xt_f.requires_grad_(True)
+x0 = torch.rand(700, 1, device=DEVICE)
+xt0 = torch.cat([x0, torch.zeros_like(x0)], dim=1)
+n0 = torch.exp(-80.0 * (x0 - 0.5) ** 2)
+C0 = torch.zeros_like(x0)
+
+tb = 2.0 * torch.rand(700, 1, device=DEVICE)
+left = torch.cat([torch.zeros_like(tb), tb], dim=1)
+right = torch.cat([torch.ones_like(tb), tb], dim=1)
+
+
+def loss_fn():
+    n, C = fields(xt_f)
+    dn, dC = grad(n, xt_f), grad(C, xt_f)
+    n_xx = grad(dn[:, 0:1], xt_f)[:, 0:1]
+    C_xx = grad(dC[:, 0:1], xt_f)[:, 0:1]
+    rn = dn[:, 1:2] - Dn * n_xx - growth * n * (1.0 - n / capacity) + kill * C * n
+    rC = dC[:, 1:2] - Dc * C_xx + clearance * C
+    physics = mse(rn) + mse(rC)
+
+    n_initial, C_initial = fields(xt0)
+    initial = mse(n_initial - n0) + mse(C_initial - C0)
+
+    n_left, C_left = fields(left)
+    n_right, C_right = fields(right)
+    boundary = mse(n_left) + mse(n_right) + mse(C_left - 1.0) + mse(C_right)
+    return physics + 20.0 * initial + 20.0 * boundary, {
+        "physics": physics, "initial": initial, "boundary": boundary
+    }
+
+
+train(base, loss_fn, epochs=18000, lr=4e-4)
+```
+
+---
+
+# 24. Inverse Problems and Parameter Estimation Code
+
+## 24.1 Unknown exponential-decay rate
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+true_k = 0.7
+t_data = torch.tensor([[0.0], [0.5], [1.0], [1.5], [2.5], [4.0]], device=DEVICE)
+u_data = torch.exp(-true_k * t_data) + 0.01 * torch.randn_like(t_data)
+
+model = MLP(1, 1).to(DEVICE)
+raw_k = nn.Parameter(torch.tensor(0.0, device=DEVICE))
+t_f = torch.linspace(0.0, 5.0, 300, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+
+
+def loss_fn():
+    k = nn.functional.softplus(raw_k)
+    u = model(t_f)
+    physics = mse(grad(u, t_f) + k * u)
+    initial = mse(model(t0) - 1.0)
+    data = mse(model(t_data) - u_data)
+    total = physics + 20.0 * initial + 20.0 * data
+    return total, {"physics": physics, "initial": initial, "data": data}
+
+
+train(model, loss_fn, epochs=8000, extra_parameters=[raw_k])
+estimated_k = float(nn.functional.softplus(raw_k).detach())
+print("true k:", true_k)
+print("estimated k:", estimated_k)
+```
+
+## 24.2 Joint estimation of logistic $r$ and $K$
+
+```python
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+N0 = 0.5
+true_r, true_K = 0.9, 12.0
+t_data = torch.linspace(0.0, 7.0, 18, device=DEVICE).reshape(-1, 1)
+N_data = true_K / (1.0 + ((true_K - N0) / N0) * torch.exp(-true_r * t_data))
+N_data += 0.05 * torch.randn_like(N_data)
+
+model = MLP(1, 1).to(DEVICE)
+raw_r = nn.Parameter(torch.tensor(0.0, device=DEVICE))
+raw_K = nn.Parameter(torch.tensor(2.0, device=DEVICE))
+t_f = torch.linspace(0.0, 7.0, 400, device=DEVICE).reshape(-1, 1)
+t_f.requires_grad_(True)
+
+
+def population(t):
+    return N0 + t * model(t)
+
+
+def loss_fn():
+    r = nn.functional.softplus(raw_r)
+    K = N0 + nn.functional.softplus(raw_K)
+    N = population(t_f)
+    physics = mse(grad(N, t_f) - r * N * (1.0 - N / K))
+    data = mse(population(t_data) - N_data)
+    return physics + 20.0 * data, {"physics": physics, "data": data}
+
+
+train(model, loss_fn, epochs=12000, lr=5e-4, extra_parameters=[raw_r, raw_K])
+print("r:", float(nn.functional.softplus(raw_r).detach()))
+print("K:", float((N0 + nn.functional.softplus(raw_K)).detach()))
+```
+
+## 24.3 Unknown heat diffusivity
+
+```python
+import math
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+true_alpha = 0.15
+model = NormalizedMLP(2, 1, lower=(0.0, 0.0), upper=(1.0, 1.0)).to(DEVICE)
+raw_alpha = nn.Parameter(torch.tensor(-2.0, device=DEVICE))
+
+xt_f = torch.rand(5000, 2, device=DEVICE).requires_grad_(True)
+xt_data = torch.rand(120, 2, device=DEVICE)
+x_d, t_d = xt_data[:, 0:1], xt_data[:, 1:2]
+u_data = torch.exp(-(math.pi**2) * true_alpha * t_d) * torch.sin(math.pi * x_d)
+u_data += 0.005 * torch.randn_like(u_data)
+
+x0 = torch.rand(500, 1, device=DEVICE)
+xt0 = torch.cat([x0, torch.zeros_like(x0)], dim=1)
+u0 = torch.sin(math.pi * x0)
+
+tb = torch.rand(500, 1, device=DEVICE)
+left = torch.cat([torch.zeros_like(tb), tb], dim=1)
+right = torch.cat([torch.ones_like(tb), tb], dim=1)
+
+
+def loss_fn():
+    alpha = nn.functional.softplus(raw_alpha)
+    u = model(xt_f)
+    du = grad(u, xt_f)
+    u_xx = grad(du[:, 0:1], xt_f)[:, 0:1]
+    physics = mse(du[:, 1:2] - alpha * u_xx)
+    data = mse(model(xt_data) - u_data)
+    initial = mse(model(xt0) - u0)
+    boundary = mse(model(left)) + mse(model(right))
+    total = physics + 20.0 * data + 10.0 * initial + 10.0 * boundary
+    return total, {
+        "physics": physics, "data": data, "initial": initial, "boundary": boundary
+    }
+
+
+train(model, loss_fn, epochs=14000, lr=5e-4, extra_parameters=[raw_alpha])
+print("true alpha:", true_alpha)
+print("estimated alpha:", float(nn.functional.softplus(raw_alpha).detach()))
+```
+
+## 24.4 Unknown source function
+
+Two networks are trained: one predicts $u(x,t)$ and one predicts the source $f(x,t)$ in $u_t-Du_{xx}=f$.
+
+```python
+import torch
+
+from pinn_utils import DEVICE, NormalizedMLP, grad, mse, seed_everything, train
+
+seed_everything()
+D = 0.05
+u_model = NormalizedMLP(2, 1, lower=(0.0, 0.0), upper=(1.0, 1.0)).to(DEVICE)
+f_model = NormalizedMLP(2, 1, lower=(0.0, 0.0), upper=(1.0, 1.0), hidden=(48, 48)).to(DEVICE)
+
+xt_f = torch.rand(5000, 2, device=DEVICE).requires_grad_(True)
+xt_data = torch.rand(250, 2, device=DEVICE)
+x, t = xt_data[:, 0:1], xt_data[:, 1:2]
+# Synthetic observed field generated from u=sin(pi*x)*(1+t)
+u_data = torch.sin(torch.pi * x) * (1.0 + t)
+
+
+def loss_fn():
+    u = u_model(xt_f)
+    du = grad(u, xt_f)
+    u_xx = grad(du[:, 0:1], xt_f)[:, 0:1]
+    source = f_model(xt_f)
+    physics = mse(du[:, 1:2] - D * u_xx - source)
+    data = mse(u_model(xt_data) - u_data)
+    source_smoothness = mse(grad(source, xt_f))
+    total = physics + 20.0 * data + 1e-4 * source_smoothness
+    return total, {
+        "physics": physics, "data": data, "source_smoothness": source_smoothness
+    }
+
+
+train(
+    u_model,
+    loss_fn,
+    epochs=12000,
+    lr=5e-4,
+    extra_parameters=list(f_model.parameters()),
+)
+```
+
+---
+
+# 25. Advanced Training Methods
+
+## 25.1 Residual-based adaptive refinement
+
+```python
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything
+
+seed_everything()
+model = MLP(1, 1).to(DEVICE)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+t_f = torch.linspace(0.0, 5.0, 50, device=DEVICE).reshape(-1, 1)
+
+for refinement_round in range(6):
+    t_f = t_f.detach().requires_grad_(True)
+    for epoch in range(1500):
+        optimizer.zero_grad(set_to_none=True)
+        u = model(t_f)
+        residual = grad(u, t_f) + u
+        initial = model(torch.tensor([[0.0]], device=DEVICE)) - 1.0
+        loss = mse(residual) + 20.0 * mse(initial)
+        loss.backward()
+        optimizer.step()
+
+    candidates = torch.linspace(0.0, 5.0, 2000, device=DEVICE).reshape(-1, 1)
+    candidates.requires_grad_(True)
+    residual_abs = torch.abs(grad(model(candidates), candidates) + model(candidates))
+    indices = torch.topk(residual_abs.reshape(-1), k=50).indices
+    new_points = candidates.detach()[indices]
+    t_f = torch.cat([t_f.detach(), new_points], dim=0)
+    print(f"round={refinement_round}, collocation points={len(t_f)}")
+```
+
+## 25.2 Adaptive loss weights
+
+The following simple gradient-balancing example updates the initial-condition weight using gradient magnitudes.
+
+```python
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything
+
+seed_everything()
+model = MLP(1, 1).to(DEVICE)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+t = torch.linspace(0.0, 5.0, 250, device=DEVICE).reshape(-1, 1).requires_grad_(True)
+t0 = torch.tensor([[0.0]], device=DEVICE)
+lambda_ic = 1.0
+
+for epoch in range(5000):
+    optimizer.zero_grad(set_to_none=True)
+    u = model(t)
+    physics_loss = mse(grad(u, t) + u)
+    initial_loss = mse(model(t0) - 1.0)
+
+    if epoch % 50 == 0:
+        p_grads = torch.autograd.grad(
+            physics_loss, model.parameters(), retain_graph=True, allow_unused=True
+        )
+        i_grads = torch.autograd.grad(
+            initial_loss, model.parameters(), retain_graph=True, allow_unused=True
+        )
+        p_norm = sum(g.abs().mean() for g in p_grads if g is not None)
+        i_norm = sum(g.abs().mean() for g in i_grads if g is not None).clamp_min(1e-12)
+        target = float((p_norm / i_norm).detach())
+        lambda_ic = 0.9 * lambda_ic + 0.1 * target
+
+    loss = physics_loss + lambda_ic * initial_loss
+    loss.backward()
+    optimizer.step()
+```
+
+## 25.3 Adam followed by L-BFGS
+
+```python
+import torch
+
+# Assume model and a closure-compatible loss_fn already exist.
+adam = torch.optim.Adam(model.parameters(), lr=1e-3)
+for _ in range(3000):
+    adam.zero_grad(set_to_none=True)
+    loss, _ = loss_fn()
+    loss.backward()
+    adam.step()
+
+lbfgs = torch.optim.LBFGS(
+    model.parameters(),
+    lr=1.0,
+    max_iter=500,
+    history_size=50,
+    line_search_fn="strong_wolfe",
+)
+
+
+def closure():
+    lbfgs.zero_grad(set_to_none=True)
+    loss, _ = loss_fn()
+    loss.backward()
+    return loss
+
+
+lbfgs.step(closure)
+```
+
+## 25.4 Fourier-feature PINN
+
+```python
+import math
+import torch
+from torch import nn
+
+
+class FourierFeatureMLP(nn.Module):
+    def __init__(self, in_features=2, frequencies=32, out_features=1):
+        super().__init__()
+        B = 8.0 * torch.randn(in_features, frequencies)
+        self.register_buffer("B", B)
+        self.net = nn.Sequential(
+            nn.Linear(2 * frequencies, 128),
+            nn.Tanh(),
+            nn.Linear(128, 128),
+            nn.Tanh(),
+            nn.Linear(128, out_features),
+        )
+
+    def forward(self, x):
+        projection = 2.0 * math.pi * x @ self.B
+        features = torch.cat([torch.sin(projection), torch.cos(projection)], dim=1)
+        return self.net(features)
+```
+
+## 25.5 Time-domain decomposition
+
+```python
+import torch
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything, train
+
+seed_everything()
+windows = [(0.0, 2.0), (2.0, 4.0), (4.0, 6.0), (6.0, 8.0)]
+models = []
+left_value = torch.tensor([[1.0]], device=DEVICE)
+
+for left, right in windows:
+    model = MLP(1, 1).to(DEVICE)
+    t = torch.linspace(left, right, 200, device=DEVICE).reshape(-1, 1)
+    t.requires_grad_(True)
+    t_left = torch.tensor([[left]], device=DEVICE)
+
+    def loss_fn():
+        u = model(t)
+        physics = mse(grad(u, t) + u)
+        interface = mse(model(t_left) - left_value)
+        return physics + 50.0 * interface, {
+            "physics": physics, "interface": interface
+        }
+
+    train(model, loss_fn, epochs=3000)
+    with torch.no_grad():
+        left_value = model(torch.tensor([[right]], device=DEVICE)).detach()
+    models.append(model)
+```
+
+---
+
+# 26. Neural Operator Code
+
+## 26.1 Minimal DeepONet for a family of ODE solutions
+
+We learn the operator mapping an initial value $u_0$ to $u(t)=u_0e^{-t}$.
+
+```python
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, seed_everything
+
+seed_everything()
+
+
+class DeepONet(nn.Module):
+    def __init__(self, latent=64):
+        super().__init__()
+        self.branch = MLP(1, latent, hidden=(64, 64))
+        self.trunk = MLP(1, latent, hidden=(64, 64))
+        self.bias = nn.Parameter(torch.zeros(1))
+
+    def forward(self, u0, t):
+        return torch.sum(self.branch(u0) * self.trunk(t), dim=1, keepdim=True) + self.bias
+
+
+model = DeepONet().to(DEVICE)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+for epoch in range(8000):
+    u0 = 0.1 + 2.9 * torch.rand(512, 1, device=DEVICE)
+    t = 5.0 * torch.rand(512, 1, device=DEVICE)
+    target = u0 * torch.exp(-t)
+    optimizer.zero_grad(set_to_none=True)
+    prediction = model(u0, t)
+    loss = torch.mean((prediction - target) ** 2)
+    loss.backward()
+    optimizer.step()
+    if epoch % 800 == 0:
+        print(epoch, float(loss.detach()))
+```
+
+## 26.2 Physics-informed DeepONet
+
+```python
+for epoch in range(8000):
+    u0 = 0.1 + 2.9 * torch.rand(512, 1, device=DEVICE)
+    t = 5.0 * torch.rand(512, 1, device=DEVICE, requires_grad=True)
+    prediction = model(u0, t)
+    prediction_t = torch.autograd.grad(
+        prediction, t, torch.ones_like(prediction), create_graph=True
+    )[0]
+    residual_loss = torch.mean((prediction_t + prediction) ** 2)
+    initial_loss = torch.mean((model(u0, torch.zeros_like(t)) - u0) ** 2)
+    loss = residual_loss + 20.0 * initial_loss
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
+```
+
+---
+
+# 27. Current NVIDIA PhysicsNeMo 2.x Code
+
+## 27.1 Installation and verification
+
+```bash
+python -m venv physicsnemo-cpu
+source physicsnemo-cpu/bin/activate
+python -m pip install --upgrade pip
+pip install torch numpy scipy sympy matplotlib
+pip install "nvidia-physicsnemo[sym]"
+python -c "import physicsnemo; print(physicsnemo.__version__)"
+```
+
+> PhysicsNeMo is optimized for NVIDIA GPUs, but standard PyTorch models and small symbolic examples can be developed on CPU when the installed dependencies support the host platform. Some NVIDIA examples, optimized kernels, meshes, or large architectures may require CUDA.
+
+## 27.2 Verify a PhysicsNeMo model on CPU
+
+```python
+import torch
+from physicsnemo.models.mlp.fully_connected import FullyConnected
+
+model = FullyConnected(in_features=1, out_features=1).to("cpu")
+x = torch.linspace(0.0, 1.0, 32).reshape(-1, 1)
+y = model(x)
+print(y.shape)
+```
+
+## 27.3 Define a custom symbolic diffusion equation
+
+PhysicsNeMo 2.x expects custom PDEs to be defined inline with SymPy.
+
+```python
+from sympy import Function, Symbol
+from physicsnemo.sym import PDE
+
+
+class Diffusion1D(PDE):
+    def __init__(self, diffusivity: float = 0.1):
+        x = Symbol("x")
+        u = Function("u")(x)
+        self.equations = {
+            "diffusion": -diffusivity * u.diff(x, 2),
+        }
+
+
+pde = Diffusion1D(0.1)
+pde.pprint()
+```
+
+## 27.4 PhysicsInformer with automatic differentiation
+
+The following example demonstrates the current integration pattern. A custom PyTorch network predicts $u(x)$, and `PhysicsInformer` calculates the symbolic second-derivative residual.
+
+```python
+import torch
+from torch import nn
+from physicsnemo.sym import PDE, PhysicsInformer
+from sympy import Function, Symbol
+
+
+class Poisson1D(PDE):
+    def __init__(self):
+        x = Symbol("x")
+        u = Function("u")(x)
+        self.equations = {"poisson": u.diff(x, 2)}
+
+
+model = nn.Sequential(
+    nn.Linear(1, 64), nn.Tanh(),
+    nn.Linear(64, 64), nn.Tanh(),
+    nn.Linear(64, 1),
+).to("cpu")
+
+physics = PhysicsInformer(
+    required_outputs=["poisson"],
+    equations=Poisson1D(),
+    grad_method="autodiff",
+    device="cpu",
+)
+
+x = torch.linspace(0.0, 1.0, 128).reshape(-1, 1)
+x.requires_grad_(True)
+u = model(x)
+residuals = physics.forward({"coordinates": x, "u": u})
+print(residuals["poisson"].shape)
+```
+
+## 27.5 PhysicsNeMo-informed PyTorch training loop
+
+```python
+import math
+import torch
+
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+x_boundary = torch.tensor([[0.0], [1.0]])
+
+for epoch in range(5000):
+    optimizer.zero_grad(set_to_none=True)
+    x = torch.rand(256, 1, requires_grad=True)
+    u = model(x)
+    residual = physics.forward({"coordinates": x, "u": u})["poisson"]
+    target_second_derivative = -(math.pi**2) * torch.sin(math.pi * x)
+    physics_loss = torch.mean((residual - target_second_derivative) ** 2)
+    boundary_loss = torch.mean(model(x_boundary) ** 2)
+    loss = physics_loss + 20.0 * boundary_loss
+    loss.backward()
+    optimizer.step()
+```
+
+> If a particular installed PhysicsNeMo build reports that only spatial derivatives are handled automatically, calculate time derivatives with PyTorch autograd and include them in the dictionary passed to `PhysicsInformer`, following that version's API documentation.
+
+---
+
+# 28. BioNeMo: CPU and GPU Code Paths
+
+## 28.1 Important support boundary
+
+The official BioNeMo Framework is a GPU-oriented, Linux-based framework. A CPU-only machine should not be presented as a supported environment for full BioNeMo foundation-model training or fine-tuning. The CPU code below teaches the same integration architecture using lightweight encoders and descriptors. The optional GPU section shows how to prepare a supported BioNeMo environment.
+
+## 28.2 CPU protein-sequence tokenizer
+
+```python
+import torch
+
+AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
+VOCAB = {aa: index + 1 for index, aa in enumerate(AMINO_ACIDS)}
+PAD = 0
+
+
+def encode_protein(sequence: str, max_length: int = 128) -> torch.Tensor:
+    sequence = sequence.upper().strip()
+    ids = [VOCAB.get(aa, PAD) for aa in sequence[:max_length]]
+    ids += [PAD] * (max_length - len(ids))
+    return torch.tensor(ids, dtype=torch.long)
+
+
+sequence = "MKTFFVLLL"
+encoded = encode_protein(sequence)
+print(encoded.shape)
+```
+
+## 28.3 CPU protein encoder
+
+```python
+import torch
+from torch import nn
+
+
+class ProteinEncoder(nn.Module):
+    def __init__(self, vocab_size=21, embedding_dim=32, hidden_dim=64):
+        super().__init__()
+        self.embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=0)
+        self.gru = nn.GRU(embedding_dim, hidden_dim, batch_first=True)
+
+    def forward(self, token_ids):
+        embedded = self.embedding(token_ids)
+        _, hidden = self.gru(embedded)
+        return hidden[-1]
+
+
+encoder = ProteinEncoder()
+batch = torch.stack([encode_protein("MKTFFV"), encode_protein("AGHIKLM")])
+embedding = encoder(batch)
+print(embedding.shape)
+```
+
+## 28.4 CPU SMILES descriptor
+
+This is intentionally simple and dependency-free. It is not a chemically complete parser.
+
+```python
+import torch
+
+SMILES_TOKENS = ["C", "N", "O", "S", "P", "F", "Cl", "Br", "=", "#", "(", ")"]
+
+
+def simple_smiles_descriptor(smiles: str) -> torch.Tensor:
+    features = [smiles.count(token) for token in SMILES_TOKENS]
+    features.extend([
+        len(smiles),
+        smiles.count("1") + smiles.count("2") + smiles.count("3"),
+        smiles.count("+") - smiles.count("-"),
+    ])
+    return torch.tensor(features, dtype=torch.float32)
+
+
+print(simple_smiles_descriptor("CC(=O)OC1=CC=CC=C1C(=O)O"))
+```
+
+## 28.5 Better CPU descriptors with RDKit
+
+```bash
+pip install rdkit
+```
+
+```python
+from rdkit import Chem
+from rdkit.Chem import Descriptors
+import torch
+
+
+def rdkit_descriptor(smiles: str) -> torch.Tensor:
+    molecule = Chem.MolFromSmiles(smiles)
+    if molecule is None:
+        raise ValueError(f"Invalid SMILES: {smiles}")
+    values = [
+        Descriptors.MolWt(molecule),
+        Descriptors.MolLogP(molecule),
+        Descriptors.TPSA(molecule),
+        Descriptors.NumHDonors(molecule),
+        Descriptors.NumHAcceptors(molecule),
+        Descriptors.NumRotatableBonds(molecule),
+        Descriptors.RingCount(molecule),
+    ]
+    return torch.tensor(values, dtype=torch.float32)
+```
+
+## 28.6 Molecule-conditioned pharmacokinetic PINN
+
+This model predicts a compound-specific elimination rate from a descriptor and uses the rate inside the ODE residual.
+
+```python
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, grad, mse, seed_everything
+
+seed_everything()
+descriptor_dim = 15
+rate_model = MLP(descriptor_dim, 1, hidden=(64, 64)).to(DEVICE)
+concentration_model = MLP(descriptor_dim + 1, 1, hidden=(96, 96, 96)).to(DEVICE)
+
+# Synthetic batch of compounds.
+descriptors = torch.randn(16, descriptor_dim, device=DEVICE)
+true_rates = 0.1 + 0.8 * torch.sigmoid(descriptors[:, :1])
+
+optimizer = torch.optim.Adam(
+    list(rate_model.parameters()) + list(concentration_model.parameters()),
+    lr=1e-3,
+)
+
+for epoch in range(8000):
+    compound_index = torch.randint(0, len(descriptors), (256,), device=DEVICE)
+    z = descriptors[compound_index]
+    t = 8.0 * torch.rand(256, 1, device=DEVICE, requires_grad=True)
+    inputs = torch.cat([z, t], dim=1)
+
+    k_pred = nn.functional.softplus(rate_model(z))
+    C = concentration_model(inputs)
+    C_t = torch.autograd.grad(C, t, torch.ones_like(C), create_graph=True)[0]
+    physics_loss = mse(C_t + k_pred * C)
+
+    zero_t = torch.zeros_like(t)
+    C0 = concentration_model(torch.cat([z, zero_t], dim=1))
+    initial_loss = mse(C0 - 10.0)
+
+    # Optional synthetic parameter supervision.
+    parameter_loss = mse(k_pred - true_rates[compound_index])
+    loss = physics_loss + 20.0 * initial_loss + parameter_loss
+
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
+```
+
+## 28.7 Protein-conditioned enzyme kinetics
+
+```python
+import torch
+from torch import nn
+
+from pinn_utils import DEVICE, MLP, grad, mse
+
+protein_encoder = ProteinEncoder().to(DEVICE)
+kinetic_head = MLP(64, 2, hidden=(64, 64)).to(DEVICE)
+substrate_model = MLP(64 + 1, 1, hidden=(96, 96, 96)).to(DEVICE)
+
+protein_tokens = torch.stack([
+    encode_protein("MKTFFVLLL"),
+    encode_protein("AGHIKLMNPQ"),
+]).to(DEVICE)
+
+optimizer = torch.optim.Adam(
+    list(protein_encoder.parameters())
+    + list(kinetic_head.parameters())
+    + list(substrate_model.parameters()),
+    lr=1e-3,
+)
+
+for epoch in range(6000):
+    index = torch.randint(0, len(protein_tokens), (128,), device=DEVICE)
+    tokens = protein_tokens[index]
+    embedding = protein_encoder(tokens)
+    kinetic_raw = kinetic_head(embedding)
+    Vmax = nn.functional.softplus(kinetic_raw[:, 0:1])
+    Km = nn.functional.softplus(kinetic_raw[:, 1:2]) + 1e-4
+
+    t = 5.0 * torch.rand(128, 1, device=DEVICE, requires_grad=True)
+    S = nn.functional.softplus(substrate_model(torch.cat([embedding, t], dim=1)))
+    S_t = torch.autograd.grad(S, t, torch.ones_like(S), create_graph=True)[0]
+    residual = S_t + Vmax * S / (Km + S)
+    loss = mse(residual)
+
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
+```
+
+## 28.8 Optional supported BioNeMo GPU environment
+
+The exact container tag changes over time. Select a current BioNeMo Framework image from NVIDIA NGC rather than copying an old tag blindly.
+
+```bash
+# Linux with NVIDIA Container Toolkit installed.
+# Replace <CURRENT_TAG> with a tag from the NVIDIA NGC BioNeMo catalog.
+docker pull nvcr.io/nvidia/clara/bionemo-framework:<CURRENT_TAG>
+
+docker run --rm -it --gpus all \
+  -v "$PWD":/workspace/project \
+  -w /workspace/project \
+  nvcr.io/nvidia/clara/bionemo-framework:<CURRENT_TAG>
+```
+
+Inside the container, verify the GPU:
+
+```bash
+nvidia-smi
+python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+A general embedding integration pattern is:
+
+```python
+# Pseudocode because model-specific BioNeMo APIs, checkpoints, and package names vary.
+# Use the README for the selected BioNeMo model package and release.
+with torch.no_grad():
+    biomolecular_embedding = bionemo_model.encode(batch_of_sequences_or_molecules)
+
+prediction = conditioned_pinn(
+    coordinates=space_time_coordinates,
+    conditioning=biomolecular_embedding,
+)
+```
+
+Do not claim this pseudocode is directly executable without selecting a specific BioNeMo model, checkpoint, release, and container.
+
+---
+
+# 29. GPU Scaling Patterns
+
+## 29.1 Automatic CPU/GPU selection
+
+```python
+import torch
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(device)
+```
+
+## 29.2 Mixed precision on an NVIDIA GPU
+
+```python
+import torch
+
+scaler = torch.amp.GradScaler("cuda")
+
+for batch in loader:
+    optimizer.zero_grad(set_to_none=True)
+    with torch.amp.autocast("cuda", dtype=torch.float16):
+        prediction = model(batch["inputs"].cuda())
+        loss = loss_function(prediction, batch["targets"].cuda())
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
+```
+
+For second-derivative PINNs, mixed precision can reduce derivative accuracy. Compare against float32 before adopting it.
+
+## 29.3 Multi-GPU DistributedDataParallel skeleton
+
+```python
+import os
+import torch
+import torch.distributed as dist
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+
+def main():
+    dist.init_process_group("nccl")
+    local_rank = int(os.environ["LOCAL_RANK"])
+    torch.cuda.set_device(local_rank)
+    model = MyModel().cuda(local_rank)
+    model = DDP(model, device_ids=[local_rank])
+    # Build a DistributedSampler and ordinary training loop here.
+    dist.destroy_process_group()
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Run with:
+
+```bash
+torchrun --standalone --nproc_per_node=4 train.py
+```
+
+---
+
+# 30. Testing and Validation
+
+## 30.1 Derivative unit test
+
+```python
+import torch
+from pinn_utils import grad
+
+x = torch.linspace(-1.0, 1.0, 20).reshape(-1, 1).requires_grad_(True)
+y = x**3
+assert torch.allclose(grad(y, x), 3.0 * x**2, atol=1e-6)
+assert torch.allclose(grad(grad(y, x), x), 6.0 * x, atol=1e-5)
+print("Derivative tests passed")
+```
+
+## 30.2 Boundary-condition test
+
+```python
+with torch.no_grad():
+    boundary_prediction = model(torch.tensor([[0.0], [1.0]]))
+assert float(boundary_prediction.abs().max()) < 1e-2
+```
+
+## 30.3 Residual diagnostic
+
+```python
+x = torch.linspace(0.0, 1.0, 1000).reshape(-1, 1).requires_grad_(True)
+u = model(x)
+residual = grad(grad(u, x), x) + torch.pi**2 * torch.sin(torch.pi * x)
+print("mean absolute residual:", float(residual.abs().mean()))
+print("maximum absolute residual:", float(residual.abs().max()))
+```
+
+## 30.4 Save and reload a model
+
+```python
+import torch
+
+torch.save({"model_state": model.state_dict()}, "pinn_checkpoint.pt")
+checkpoint = torch.load("pinn_checkpoint.pt", map_location="cpu")
+model.load_state_dict(checkpoint["model_state"])
+model.eval()
+```
+
+---
+
+# 31. Recommended Execution Order
+
+Run the code in this order:
+
+1. `pinn_utils.py`
+2. supervised warm-up
+3. exponential decay
+4. inverse decay-rate estimation
+5. logistic growth
+6. damped oscillator
+7. Lotka-Volterra or SIR
+8. two-compartment pharmacokinetics
+9. Poisson equation
+10. heat equation
+11. inverse diffusivity
+12. wave equation
+13. Burgers equation
+14. reaction-diffusion
+15. adaptive sampling
+16. DeepONet
+17. PhysicsNeMo 2.x symbolic examples
+18. CPU protein and molecule encoders
+19. molecule-conditioned PINN
+20. optional BioNeMo GPU workflow
+
+---
+
+# 32. Reproducibility and Practical Warnings
+
+- CPU execution is deliberately prioritized, but advanced PDE examples can take substantial time. Reduce collocation points and epochs while learning, then increase them for final experiments.
+- A small loss does not guarantee a correct solution. Always compare against an analytical solution, a trusted numerical solver, conservation laws, held-out data, and residual plots.
+- Inverse problems can be non-identifiable. Different parameter combinations may explain the same sparse observations.
+- BioNeMo foundation-model training and fine-tuning should be treated as GPU workflows. The CPU encoders in this document are educational substitutes, not BioNeMo foundation models.
+- PhysicsNeMo is undergoing active API evolution. The code in Section 27 follows the PhysicsNeMo 2.x `physicsnemo.sym` and explicit-PyTorch-loop direction; verify the installed release documentation when an import or argument changes.
+- Never use all available future observations when evaluating genuine forecasting performance. Separate calibration, validation, and test periods.
+
+---
+
+# 33. Completion Checklist
+
+You now have executable code for:
+
+- PyTorch foundations;
+- first-order ODEs;
+- nonlinear ODEs;
+- second-order ODEs;
+- coupled ODE systems;
+- stiff kinetics;
+- Poisson, heat, wave, Burgers, reaction-diffusion, Fisher-KPP, and coupled biological PDEs;
+- inverse scalar parameters;
+- inverse PDE coefficients;
+- unknown source functions;
+- adaptive sampling;
+- adaptive loss balancing;
+- Adam and L-BFGS optimization;
+- Fourier features;
+- time-domain decomposition;
+- DeepONet and physics-informed DeepONet;
+- current PhysicsNeMo symbolic integration;
+- CPU biological sequence and molecular representations;
+- molecule- and protein-conditioned PINNs;
+- optional supported BioNeMo GPU setup;
+- GPU mixed precision and multi-GPU patterns;
+- tests, diagnostics, and model persistence.
+
