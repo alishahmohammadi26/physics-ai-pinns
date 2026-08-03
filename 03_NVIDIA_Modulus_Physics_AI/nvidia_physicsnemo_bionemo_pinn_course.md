@@ -775,7 +775,7 @@ where $\theta$ represents all network weights and biases.
 A PINN often uses:
 
 $$
-\mathcal{L}
+\mathcal{L} \\
 =
 \lambda_r\mathcal{L}_{physics}
 +
