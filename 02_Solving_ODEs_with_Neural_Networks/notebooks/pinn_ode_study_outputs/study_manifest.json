@@ -1,0 +1,29 @@
+{
+  "title": "Unified PINN / adaptive sampling / DeepONet ODE study",
+  "profile": "quick",
+  "seed": 20260727,
+  "benchmarks": [
+    "linear_decay",
+    "damped_oscillator",
+    "logistic_growth",
+    "consecutive_reaction",
+    "lotka_volterra",
+    "sir",
+    "van_der_pol",
+    "qssa_enzyme",
+    "monod_bioprocess"
+  ],
+  "methods": [
+    "PINN-LHS",
+    "RAR",
+    "RAS",
+    "DeepONet",
+    "PI-DeepONet"
+  ],
+  "n_runs": 45,
+  "best_median_method": "DeepONet",
+  "fastest_median_method": "PINN-LHS",
+  "results_csv": "/Users/bgh5874/Library/CloudStorage/OneDrive-Takeda/Documents/Admin/Portfolio/Website/projects/Physics_AI/02_Solving_ODEs_with_Neural_Networks/notebooks/pinn_ode_study_outputs/benchmark_results.csv",
+  "figures_directory": "/Users/bgh5874/Library/CloudStorage/OneDrive-Takeda/Documents/Admin/Portfolio/Website/projects/Physics_AI/02_Solving_ODEs_with_Neural_Networks/notebooks/pinn_ode_study_outputs/figures",
+  "caveat": "Single-seed profile results are descriptive; repeat/tune before publication claims."
+}

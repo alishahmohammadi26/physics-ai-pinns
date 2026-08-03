@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Hamiltonian — from zero to research level</title>
+<script>
+window.MathJax = {tex:{inlineMath:[['\\(','\\)']], displayMath:[['$$','$$']]},
+                  svg:{fontCache:'global'}};
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+:root{
+  --bg:#ffffff; --panel:#f4f6f8; --panel2:#eaecef; --line:#d0d7de;
+  --fg:#1a1f24; --dim:#57606a;
+  --blue:#0969da; --pink:#d6427b; --green:#1a7f37; --amber:#9a6700; --purple:#6639ba;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);
+     font:16px/1.72 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+.wrap{display:flex;max-width:1500px;margin:0 auto}
+
+/* ---------------- sidebar ---------------- */
+nav{position:sticky;top:0;height:100vh;overflow-y:auto;flex:0 0 260px;
+    padding:26px 16px;border-right:1px solid var(--line);background:#f4f6f8}
+nav h4{margin:0 0 4px;font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)}
+nav a{display:block;color:var(--dim);text-decoration:none;padding:5px 9px;
+      border-radius:6px;font-size:13.5px;border-left:2px solid transparent}
+nav a:hover{background:var(--panel);color:var(--fg)}
+nav a.lvl{margin-top:15px;color:var(--fg);font-weight:600}
+nav .tag{font-size:10px;padding:1px 6px;border-radius:20px;margin-right:6px;font-weight:700}
+.t0{background:#123a2a;color:var(--green)} .t1{background:#0f2d47;color:var(--blue)}
+.t2{background:#3d2a12;color:var(--amber)} .t3{background:#3a1230;color:var(--pink)}
+.t4{background:#2b1f45;color:var(--purple)}
+
+main{flex:1;padding:44px 58px;max-width:1000px;min-width:0}
+
+/* ---------------- typography ---------------- */
+h1{font-size:40px;line-height:1.15;margin:0 0 10px;letter-spacing:-.02em}
+h2{font-size:27px;margin:56px 0 4px;padding-top:18px;border-top:1px solid var(--line);letter-spacing:-.01em}
+h3{font-size:19.5px;margin:34px 0 8px;color:var(--fg)}
+h4{font-size:16px;margin:22px 0 6px;color:var(--amber)}
+p{margin:12px 0}
+code{background:var(--panel2);padding:2px 6px;border-radius:4px;
+     font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13.5px;color:var(--amber)}
+pre{background:#f4f6f8;border:1px solid var(--line);border-radius:10px;padding:16px;
+    overflow-x:auto;font-size:13px;line-height:1.6}
+pre code{background:none;padding:0;color:#1a1f24}
+a{color:var(--blue)}
+.sub{color:var(--dim);font-size:18px;margin-bottom:26px}
+.lead{font-size:17.5px}
+
+/* ---------------- components ---------------- */
+.level{display:inline-block;font-size:11px;font-weight:800;letter-spacing:.1em;
+       padding:3px 10px;border-radius:20px;text-transform:uppercase;vertical-align:middle;margin-left:10px}
+figure{margin:26px 0;background:var(--panel);border:1px solid var(--line);
+       border-radius:14px;padding:14px;text-align:center}
+figure img{max-width:100%;border-radius:8px;display:block;margin:0 auto}
+figcaption{color:var(--dim);font-size:13.5px;margin-top:11px;text-align:left;line-height:1.6}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+     padding:16px 20px;margin:22px 0}
+.box.blue{border-left:4px solid var(--blue)}
+.box.green{border-left:4px solid var(--green)}
+.box.amber{border-left:4px solid var(--amber)}
+.box.pink{border-left:4px solid var(--pink)}
+.box.purple{border-left:4px solid var(--purple)}
+.box h4{margin-top:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}
+  nav{display:none} main{padding:24px 18px}}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:14.5px}
+th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--amber);font-size:12.5px;text-transform:uppercase;letter-spacing:.06em}
+tr:hover td{background:var(--panel)}
+.key{color:var(--green);font-weight:700}
+.warn{color:var(--pink);font-weight:700}
+hr{border:none;border-top:1px solid var(--line);margin:40px 0}
+.mono{font-family:"SF Mono",Menlo,Consolas,monospace}
+
+/* ---------------- interactive ---------------- */
+.lab{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin:26px 0}
+.ctrl{display:flex;flex-wrap:wrap;gap:18px;align-items:center;margin-bottom:14px}
+.ctrl label{font-size:13px;color:var(--dim)}
+.ctrl input[type=range]{width:130px;vertical-align:middle}
+button{background:var(--panel2);color:var(--fg);border:1px solid var(--line);
+       padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+button:hover{border-color:var(--blue)}
+button.on{background:var(--blue);color:#06121f;border-color:var(--blue)}
+canvas{background:#f4f6f8;border-radius:10px;width:100%;display:block}
+.readout{font-family:"SF Mono",Menlo,monospace;font-size:12.5px;color:var(--amber);margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <h4>Contents</h4>
+  <a href="#top">Start here</a>
+  <a class="lvl" href="#l1"><span class="tag t0">L1</span>Beginner</a>
+  <a href="#idea">Three roads</a>
+  <a href="#newtonian">Road 1: Newtonian</a>
+  <a href="#lagrangian-intro">Road 2: Lagrangian</a>
+  <a href="#hamiltonian-intro">Road 3: Hamiltonian</a>
+  <a href="#phase">Phase space</a>
+  <a href="#eqs">Hamilton's equations</a>
+  <a href="#portrait">Phase portrait</a>
+  <a href="#interactive">Interactive guide</a>
+  <a class="lvl" href="#l2"><span class="tag t1">L2</span>Working knowledge</a>
+  <a href="#recipe">Building H yourself</a>
+  <a href="#legendre">The Legendre transform</a>
+  <a href="#worked">Worked example</a>
+  <a href="#when">When it breaks</a>
+  <a class="lvl" href="#l3"><span class="tag t2">L3</span>The real structure</a>
+  <a href="#geometry">Symplectic geometry</a>
+  <a href="#poisson">Poisson brackets</a>
+  <a href="#liouville">Liouville's theorem</a>
+  <a href="#noether">Noether &amp; symmetry</a>
+  <a href="#chaos">Integrability &amp; chaos</a>
+  <a class="lvl" href="#l4"><span class="tag t3">L4</span>Computation</a>
+  <a href="#integrators">Symplectic integrators</a>
+  <a href="#shadow">The shadow Hamiltonian</a>
+  <a href="#lab">Interactive lab</a>
+  <a class="lvl" href="#l5"><span class="tag t4">L5</span>Machine learning</a>
+  <a href="#hnn">Hamiltonian Neural Nets</a>
+  <a href="#code">The code, explained</a>
+  <a href="#vslnn">HNN vs LNN</a>
+  <a href="#hmc">HMC &amp; diffusion</a>
+  <a href="#frontier">Open frontiers</a>
+  <a class="lvl" href="#ref">Reference</a>
+  <a href="#cheat">Cheat sheet</a>
+  <a href="#glossary">Glossary</a>
+  <a href="#reading">Reading path</a>
+</nav>
+
+<main id="top">
+
+<h1>The Hamiltonian</h1>
+<p class="sub">One function that contains a system's entire future — explained from scratch, then taken all the way to modern machine learning.</p>
+
+<div class="box blue">
+<h4>The 30-second version</h4>
+<p style="margin-bottom:0">Newton tells you how to compute <em>forces</em>, one at a time, and then chase the consequences. Hamilton says: don't bother. Write down a single scalar function \(H\) — usually the total energy — expressed in terms of <strong>where things are</strong> and <strong>how much momentum they carry</strong>. Once you have that one function, the entire motion of the system follows mechanically, forever, from two symmetric equations. You never write down a force again.</p>
+</div>
+
+<p class="lead">This document is layered. <strong>Level 1</strong> assumes only that you know what energy and speed are. <strong>Level 5</strong> assumes you train neural networks. You can stop at any level and still have something true and useful — each one is a complete picture, just at a different resolution.</p>
+
+<!-- ==================================================================== -->
+<h2 id="l1">Level 1 — Beginner <span class="level t0" style="background:#123a2a;color:var(--green)">no maths required</span></h2>
+
+<div class="box blue">
+<h4>Terms used throughout this level — read this first</h4>
+<p>These words appear constantly and are often left undefined elsewhere. Here is what each one actually means:</p>
+<table style="margin:10px 0 4px">
+<tr><th style="width:160px">Term</th><th>Meaning</th></tr>
+<tr>
+  <td><strong>\(q\) — position</strong></td>
+  <td>A number (or set of numbers) that completely pins down the <em>configuration</em> of the system — where everything is. For a pendulum, \(q\) is the angle the rod makes with the vertical. For a car on a road, \(q\) is its distance from some reference point. Physicists call it a <em>generalised coordinate</em> because it doesn't have to be a simple length — it can be an angle, a distance, or any combination that uniquely identifies the arrangement of the system.</td>
+</tr>
+<tr>
+  <td><strong>\(p\) — momentum</strong></td>
+  <td>Momentum is <em>mass times velocity</em>: \(p = m v\). A 2 kg ball moving at 3 m/s carries momentum \(p = 6\) kg·m/s. It measures how much motion an object carries — or, equivalently, how hard it is to stop. A fast, heavy lorry is hard to stop; it has a lot of momentum. A slow, light tennis ball is easy to stop; it has little. Momentum is <em>not</em> the same as speed or energy — it is a separate bookkeeping quantity, and it is the natural partner of position in the Hamiltonian framework.</td>
+</tr>
+<tr>
+  <td><strong>Inertia</strong></td>
+  <td>The tendency of an object to resist changes in its motion. A heavy object has high inertia: it takes a large force to get it moving, and an equally large force to bring it back to rest. A light object has low inertia and responds quickly to small forces. In equations, inertia appears as mass \(m\): the bigger \(m\), the more resistant the object. Newton's first law is just a statement about inertia — objects keep doing what they are already doing unless something pushes them.</td>
+</tr>
+<tr>
+  <td><strong>\(T\) — kinetic energy</strong></td>
+  <td>The energy an object has <em>because it is moving</em>. For a single mass, \(T = \tfrac{1}{2}mv^2 = \tfrac{p^2}{2m}\). A fast-moving object has high kinetic energy; a stationary object has none. The kinetic energy depends only on how fast the object is going, not on where it is.</td>
+</tr>
+<tr>
+  <td><strong>\(V\) — potential energy</strong></td>
+  <td>Stored energy that depends on <em>position</em>, not on motion. A ball held above the ground has gravitational potential energy \(V = mgh\) — the higher it is, the more energy is stored. A compressed spring has elastic potential energy. If you release the ball or the spring, potential energy converts into kinetic energy. Crucially, \(V\) depends only on where the object is (\(q\)), not on how fast it is moving.</td>
+</tr>
+<tr>
+  <td><strong>\(\dot q,\, \dot p\) — rates of change</strong></td>
+  <td>A dot over a quantity means "how fast it is changing per second". So \(\dot q\) is the rate at which position changes — which is simply <em>velocity</em>. And \(\dot p\) is the rate at which momentum changes — which is <em>force</em> (Newton's second law: force = rate of change of momentum).</td>
+</tr>
+</table>
+</div>
+
+<h3 id="idea">Three roads to the same destination</h3>
+
+<p>There are three major formulations of classical mechanics. They are <em>all equivalent</em> — they predict identical motion — but each one illuminates a different aspect of the physics. We will build each one step by step using the <strong>simple pendulum</strong> as our running example, because it is the simplest non-trivial system and every idea carries over to much more complex problems.</p>
+
+<div class="box amber">
+<h4>The running example: simple pendulum</h4>
+<p>A mass \(m\) (the bob) hangs from a lightweight rod of length \(\ell\), attached to a pivot at the top. The bob is constrained to move in a circle. We describe its position by the angle \(\theta\) that the rod makes with the downward vertical.</p>
+<ul style="margin-bottom:0">
+  <li>\(\theta = 0\): hanging straight down (equilibrium).</li>
+  <li>\(\theta = \pi\): balanced perfectly upright (unstable).</li>
+  <li>Any value of \(\theta\) plus any angular speed \(\dot\theta\) completely describes the state of the pendulum.</li>
+</ul>
+</div>
+
+<!-- ---- ROAD 1: NEWTONIAN ---- -->
+<h3 id="newtonian">Road 1: Newtonian mechanics — \(F = ma\)</h3>
+
+<p><strong>The strategy:</strong> identify every force on the object, resolve it into components along the direction of motion, and set the total force equal to mass times acceleration.</p>
+
+<h4>Step 1 — Set up coordinates</h4>
+<p>We could use the arc-length \(s\) (the distance the bob travels along its circular path) or the angle \(\theta\). They are equivalent because \(s = \ell\theta\) (arc = radius × angle). Using \(\theta\) is more natural here, so we let \(q = \theta\).</p>
+
+<h4>Step 2 — Identify the forces</h4>
+<p>Two forces act on the bob:</p>
+<ol>
+  <li><strong>Gravity</strong>: magnitude \(mg\), pointing straight down.</li>
+  <li><strong>Tension</strong> in the rod: magnitude \(T\), pointing directly toward the pivot (i.e. radially inward).</li>
+</ol>
+<p>The bob can only move <em>along</em> the circular arc (the rod prevents it from flying outward). So only the <em>tangential</em> component of force — the part pointing along the arc — changes the speed of the bob. The tension is directed radially (perpendicular to the arc) so it does <strong>nothing</strong> to the bob's speed. We can ignore it entirely for the equation of motion.</p>
+
+<h4>Step 3 — Resolve gravity along the arc</h4>
+<p>With a small triangle of geometry: the component of gravity tangent to the arc is \(-mg\sin\theta\). The minus sign is because gravity pulls the bob <em>back toward vertical</em> (toward smaller \(\theta\)).</p>
+
+<h4>Step 4 — Write \(F = ma\) along the arc</h4>
+<p>Newton's second law along the tangential direction:</p>
+$$m\ell\ddot\theta \;=\; -mg\sin\theta$$
+<p>Dividing both sides by \(m\ell\):</p>
+$$\boxed{\ddot\theta \;=\; -\frac{g}{\ell}\sin\theta}$$
+<p>This is the <strong>equation of motion</strong> for the pendulum — a second-order differential equation (it contains \(\ddot\theta\), the second derivative). The dot-notation means: \(\dot\theta = d\theta/dt\) is angular velocity (how fast the angle is changing), and \(\ddot\theta = d^2\theta/dt^2\) is angular acceleration (how fast the angular velocity is changing).</p>
+
+<div class="box">
+<h4>What does "equation of motion" mean?</h4>
+<p style="margin-bottom:0">An equation of motion is a differential equation whose solution is \(\theta(t)\) — the angle as a function of time. If you give it an initial angle \(\theta(0)\) and an initial angular velocity \(\dot\theta(0)\), the equation tells you where the bob will be at every future moment. For small angles (\(\sin\theta \approx \theta\)) the solution is a clean sinusoid. For large angles, the \(\sin\theta\) term makes it much harder to solve analytically, and we turn to numerical methods or the Lagrangian/Hamiltonian approaches.</p>
+</div>
+
+<!-- ---- ROAD 2: LAGRANGIAN ---- -->
+<h3 id="lagrangian-intro">Road 2: Lagrangian mechanics — work with energies, not forces</h3>
+
+<p><strong>The strategy:</strong> instead of cataloguing every force (vectors, components, diagrams), write down just two scalar numbers — kinetic energy and potential energy — and take their difference. That difference is called the <strong>Lagrangian</strong>.</p>
+
+<div class="box green">
+<h4>The Lagrangian defined</h4>
+$$L(q, \dot q) \;=\; \underbrace{T(\dot q)}_{\text{kinetic energy}} \;-\; \underbrace{V(q)}_{\text{potential energy}}$$
+<p style="margin-bottom:0">It is a function of position \(q\) and velocity \(\dot q\). Notice the <strong>minus</strong> sign — kinetic minus potential, not plus. (The Hamiltonian will be kinetic <em>plus</em> potential.) The Lagrangian is not itself the energy; it is a bookkeeping object from which the equations of motion flow automatically.</p>
+</div>
+
+<h4>Step 1 — Write the kinetic energy \(T\)</h4>
+<p>Kinetic energy is \(\tfrac{1}{2}mv^2\). The bob moves along a circle, so its speed is \(v = \ell\dot\theta\) (arc-rate = radius × angular rate). Therefore:</p>
+$$T = \tfrac{1}{2}m(\ell\dot\theta)^2 = \tfrac{1}{2}m\ell^2\dot\theta^2$$
+
+<h4>Step 2 — Write the potential energy \(V\)</h4>
+<p>We take the height of the pivot as the reference level (zero potential). The bob sits at height \(-\ell\cos\theta\) below the pivot, so:</p>
+$$V = mg(-\ell\cos\theta) = -mg\ell\cos\theta$$
+<p>(When \(\theta = 0\) the bob is at its lowest point, \(V\) is at its minimum; when \(\theta = \pi\) it is at the top, \(V\) is at its maximum.)</p>
+
+<h4>Step 3 — Write the Lagrangian \(L = T - V\)</h4>
+$$L = \tfrac{1}{2}m\ell^2\dot\theta^2 - (-mg\ell\cos\theta) = \tfrac{1}{2}m\ell^2\dot\theta^2 + mg\ell\cos\theta$$
+
+<h4>Step 4 — Define the generalised momentum</h4>
+<p>Lagrangian mechanics introduces the <strong>generalised momentum</strong> \(p\) corresponding to the coordinate \(\theta\), defined as the derivative of \(L\) with respect to the velocity \(\dot\theta\):</p>
+$$p_\theta \;=\; \frac{\partial L}{\partial \dot\theta} \;=\; m\ell^2\dot\theta$$
+<p>This is the <strong>angular momentum</strong> of the bob: mass × (distance from pivot)\(^2\) × angular velocity. For a simple mass on a spring, the same formula gives the ordinary linear momentum \(p = mv\). The Lagrangian framework unifies these.</p>
+
+<div class="box blue">
+<h4>Why "generalised" momentum?</h4>
+<p style="margin-bottom:0">When the coordinate \(q\) is a plain Cartesian position, \(p = \partial L/\partial\dot q\) gives the familiar linear momentum \(mv\). When \(q\) is an angle, it gives angular momentum. When \(q\) is something stranger (a normal mode amplitude, a field value), the formula still works — it just returns a correspondingly exotic quantity. The word "generalised" means the formula works for any coordinate, not just positions measured in metres.</p>
+</div>
+
+<h4>Step 5 — Apply the Euler–Lagrange equation</h4>
+<p>This is the Lagrangian equivalent of \(F = ma\). For each coordinate \(q\):</p>
+$$\frac{d}{dt}\!\left(\frac{\partial L}{\partial \dot q}\right) = \frac{\partial L}{\partial q}$$
+<p>In words: <em>the rate of change of the generalised momentum equals the generalised force</em> (the sensitivity of \(L\) to position). This structure is exactly Newton's law, but written entirely in terms of the energy function.</p>
+
+<p>For our pendulum:</p>
+<ul>
+  <li>Left side: \(\displaystyle\frac{d}{dt}(m\ell^2\dot\theta) = m\ell^2\ddot\theta\)</li>
+  <li>Right side: \(\displaystyle\frac{\partial L}{\partial\theta} = -mg\ell\sin\theta\)</li>
+</ul>
+<p>Setting them equal and dividing by \(m\ell^2\):</p>
+$$\ddot\theta = -\frac{g}{\ell}\sin\theta$$
+<p>The same equation of motion as before — arrived at <em>without drawing a single force diagram</em>, using only energies.</p>
+
+<div class="box purple">
+<h4>Why Lagrangian beats Newtonian in complex systems</h4>
+<p style="margin-bottom:0">For the pendulum, both approaches give the same equation with similar effort. But imagine a double pendulum, a robot arm with multiple joints, or a molecule with dozens of atoms. With Newton you must resolve every force into components and carefully account for internal constraint forces. With Lagrange you write down \(T\) and \(V\) — two scalars — and crank the formula. Constraint forces disappear automatically (they do no work). This is the practical reason physicists switched to Lagrangians.</p>
+</div>
+
+<!-- ---- ROAD 3: HAMILTONIAN ---- -->
+<h3 id="hamiltonian-intro">Road 3: Hamiltonian mechanics — the energy function as the engine</h3>
+
+<p><strong>The strategy:</strong> take the total energy (kinetic + potential), write it in terms of position \(q\) and momentum \(p\) (not velocity \(\dot q\)), and call it the Hamiltonian \(H\). Then two simple derivative rules give all the equations of motion.</p>
+
+<div class="box green">
+<h4>The Hamiltonian defined</h4>
+$$H(q,p) \;=\; \underbrace{T(p)}_{\text{kinetic energy}} \;+\; \underbrace{V(q)}_{\text{potential energy}}$$
+<p style="margin-bottom:0">Notice the <strong>plus</strong> sign — this is total energy, unlike the Lagrangian (which had a minus). The crucial difference from the Lagrangian: \(H\) is written in terms of momentum \(p\), not velocity \(\dot q\). We swap from \(\dot q\) to \(p\) using the momentum definition \(p = \partial L/\partial\dot q\), which gives \(\dot q = p/(m)\) for a simple mass.</p>
+</div>
+
+<h4>Step 1 — Start from the Lagrangian result</h4>
+<p>We already found: \(p_\theta = m\ell^2\dot\theta\). Solve for \(\dot\theta\):</p>
+$$\dot\theta = \frac{p_\theta}{m\ell^2}$$
+
+<h4>Step 2 — Write total energy, replace \(\dot\theta\) with \(p_\theta\)</h4>
+<p>Total energy = kinetic + potential. Substitute \(\dot\theta = p_\theta/(m\ell^2)\) into the kinetic term:</p>
+$$H = \frac{1}{2}m\ell^2\dot\theta^2 + (-mg\ell\cos\theta) = \frac{p_\theta^2}{2m\ell^2} - mg\ell\cos\theta$$
+<p>This is the Hamiltonian. It contains <em>no velocities</em> — only position \(\theta\) and momentum \(p_\theta\).</p>
+
+<h4>Step 3 — Apply Hamilton's equations</h4>
+<p>Two first-order equations replace the single second-order equation of motion:</p>
+$$\dot\theta = \frac{\partial H}{\partial p_\theta} = \frac{p_\theta}{m\ell^2} \qquad\quad \dot p_\theta = -\frac{\partial H}{\partial\theta} = -mg\ell\sin\theta$$
+
+<p>Read these in plain English:</p>
+<ul>
+  <li><strong>First:</strong> the angular velocity equals momentum divided by \(m\ell^2\). This is just the definition of angular momentum rearranged. It says how fast the angle changes given the current momentum.</li>
+  <li><strong>Second:</strong> the momentum changes at a rate \(-mg\ell\sin\theta\). This is the restoring torque of gravity — it pushes the bob back toward \(\theta = 0\). It says how fast the momentum changes given the current angle.</li>
+</ul>
+
+<p>Combine them: differentiate the first with respect to time, substitute the second, and you recover \(\ddot\theta = -(g/\ell)\sin\theta\). All three roads lead to the same place.</p>
+
+<div class="box amber">
+<h4>Why split into two first-order equations?</h4>
+<p style="margin-bottom:0">The Newtonian and Lagrangian approaches give <em>one second-order</em> equation (\(\ddot\theta = \ldots\)) — you need two initial conditions (\(\theta_0\) and \(\dot\theta_0\)) and you integrate twice. Hamilton's pair of <em>first-order</em> equations have the same information but in a form that is geometrically richer: you can visualise the entire state as a single point \((\theta, p_\theta)\) moving through a plane, and study the global structure of all possible motions at once. That plane is phase space.</p>
+</div>
+
+<!-- ---- COMPARISON TABLE ---- -->
+<h3 id="compare">The three formulations side by side</h3>
+
+<table>
+<tr><th></th><th>Newtonian</th><th>Lagrangian</th><th>Hamiltonian</th></tr>
+<tr><td><strong>Start with</strong></td><td>Forces (vectors)</td><td>\(L = T - V\) (scalar)</td><td>\(H = T + V\) (scalar)</td></tr>
+<tr><td><strong>Variables</strong></td><td>position, acceleration</td><td>\(q\), velocity \(\dot q\)</td><td>\(q\), momentum \(p\)</td></tr>
+<tr><td><strong>Master equation</strong></td><td>\(F = ma\) — one 2nd-order ODE</td><td>Euler–Lagrange — one 2nd-order ODE</td><td>Hamilton's eqns — two 1st-order ODEs</td></tr>
+<tr><td><strong>Pendulum result</strong></td><td>\(\ddot\theta = -(g/\ell)\sin\theta\)</td><td>\(\ddot\theta = -(g/\ell)\sin\theta\)</td><td>\(\dot\theta = p/m\ell^2\), \(\dot p = -mg\ell\sin\theta\)</td></tr>
+<tr><td><strong>Handles constraints?</strong></td><td>Must add extra forces</td><td>Automatic (they drop out)</td><td>Automatic</td></tr>
+<tr><td><strong>Geometric insight?</strong></td><td>Limited</td><td>Action principle</td><td>Phase space, conservation laws</td></tr>
+<tr><td><strong>Essential for QM?</strong></td><td>No</td><td>Path integrals</td><td>Schrödinger equation</td></tr>
+</table>
+
+<!-- ---- PHASE SPACE ---- -->
+<h3 id="phase">Phase space: seeing all possible futures at once</h3>
+
+<p>Hamilton's equations describe the evolution of a state \((\theta, p_\theta)\). That state is a single point in a two-dimensional plane — the <strong>phase space</strong> of the pendulum. As time passes, that point moves, tracing a curve called a <strong>flow</strong>.</p>
+
+<p><strong>Why does this buy us anything?</strong> Because the energy \(H(\theta, p_\theta)\) is conserved. The state must always stay on the curve where \(H\) has the same value it started with. These curves of constant \(H\) are the possible trajectories — and you can draw all of them at once, giving a complete picture of every possible motion, without solving a single equation.</p>
+
+<div class="box amber">
+<h4>The mountain-range analogy</h4>
+<p style="margin-bottom:0">Think of the \(H\) surface as a fixed mountain range. A state (the "marble") is constrained to constant altitude — it can never roll downhill. So it runs <em>along</em> contour lines forever. The mountain's shape encodes the physics; the marble's starting contour encodes the initial energy.</p>
+</div>
+
+<figure>
+<img alt="pendulum_phase.gif" src="pendulum_phase.gif"><figcaption>Left: the bob swinging in physical space. Right: the same motion as a single point tracing a closed loop in phase space (horizontal = angle \(\theta\), vertical = angular momentum \(p_\theta\)). Grey contours are lines of constant \(H\). The point never crosses them — it rides one contour forever. Conservation of energy, seen as a geometric fact.</figcaption>
+</figure>
+
+<h3 id="eqs">Hamilton's equations — the precise statement</h3>
+
+$$\dot q \;=\; \frac{\partial H}{\partial p}, \qquad\qquad \dot p \;=\; -\,\frac{\partial H}{\partial q}$$
+
+<p>The symbol \(\partial H/\partial p\) is a <strong>partial derivative</strong>: "how steeply does \(H\) change if I increase \(p\) by a tiny amount while holding \(q\) fixed?" You treat the other variable as a constant while differentiating. Read the equations:</p>
+
+<ul>
+<li><strong>\(\dot q = \partial H/\partial p\)</strong>: how fast the position changes equals the sensitivity of energy to momentum. For a mass on a spring, \(H = p^2/2m + kq^2/2\), so \(\partial H/\partial p = p/m\) — velocity equals momentum divided by mass. The denominator \(m\) is inertia: heavier means the same momentum produces less velocity.</li>
+<li><strong>\(\dot p = -\partial H/\partial q\)</strong>: how fast the momentum changes equals minus the sensitivity of energy to position — i.e., the force. If potential energy rises steeply with position (steep hill), momentum decreases fast (the object decelerates). The minus sign means objects accelerate downhill, away from high potential energy.</li>
+</ul>
+
+<div class="box">
+<h4>Concrete check: mass on a spring</h4>
+<p>\(H = \dfrac{p^2}{2m} + \dfrac{1}{2}kq^2\). Applying the equations:</p>
+$$\dot q = \frac{p}{m} \;\Rightarrow\; \text{velocity = momentum/mass} \qquad \dot p = -kq \;\Rightarrow\; \text{force = }F = -kq \text{ (Hooke's law)}$$
+<p style="margin-bottom:0">Newton's laws drop out of a single energy function — no force diagram required.</p>
+</div>
+
+<h3 id="portrait">Reading a phase portrait</h3>
+
+<p>Drawing all contour lines of \(H\) on the phase plane gives a <strong>phase portrait</strong> — a map of every possible motion at once.</p>
+
+<figure>
+<img alt="portrait.png" src="portrait.png"><figcaption>
+  The complete dynamics of the pendulum in phase space (\(\theta\) horizontal, \(p_\theta\) vertical).<br><br>
+  <span style="color:#58a6ff"><b>Blue dots</b></span> at \((\theta,p) = (0,0)\): the pendulum hanging straight down — a <em>stable equilibrium</em>. A small push returns it; nearby trajectories are closed loops (back-and-forth oscillation, called <em>libration</em>).<br><br>
+  <span style="color:#f778ba"><b>Pink crosses</b></span> at \((\theta,p) = (\pm\pi, 0)\): the pendulum balanced upright — an <em>unstable equilibrium</em>. Any tiny nudge sends it falling away.<br><br>
+  <span style="color:#3fb950"><b>Green curve</b></span> — the <em>separatrix</em> (Latin: "the separator"). This is the energy contour through the unstable equilibrium. Inside it: the pendulum oscillates (not enough energy to go over the top). Outside it: the pendulum has enough energy to whirl continuously over the top in full rotations. A pendulum sitting exactly on the separatrix would take infinite time to reach the top and never quite arrive.
+</figcaption>
+</figure>
+
+<p>Without solving any equation, the portrait reveals: how many equilibria there are, which are stable, what separates swinging from spinning, and what happens at every possible starting condition.</p>
+
+<!-- ---- INTERACTIVE GUIDE ---- -->
+<h3 id="interactive">Interactive step-by-step guide: derive it yourself</h3>
+
+<p>Work through the pendulum derivation step by step. At each stage, write Python code that matches the equation shown, run it, and the checker tells you if it is correct. Use the system parameters <code>m = 1.0</code> (mass, kg), <code>l = 1.0</code> (rod length, m), <code>g = 9.81</code> (gravity, m/s²).</p>
+
+<style>
+.guide-step{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:20px 0}
+.guide-step h4{margin-top:0;color:var(--amber)}
+.guide-step .prompt{font-size:15px;margin-bottom:12px}
+.code-area{width:100%;background:#eaecef;color:#1a1f24;border:1px solid var(--line);border-radius:8px;
+           padding:12px;font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13.5px;
+           resize:vertical;min-height:56px;outline:none}
+.run-btn{margin-top:10px;background:var(--blue);color:#06121f;border:none;padding:8px 20px;
+         border-radius:8px;cursor:pointer;font-weight:700;font-size:13px}
+.run-btn:hover{opacity:0.85}
+.feedback{margin-top:10px;font-size:13.5px;padding:10px 14px;border-radius:8px;display:none}
+.feedback.ok{background:#12302a;color:var(--green);border:1px solid var(--green);display:block}
+.feedback.err{background:#2d1212;color:#f47067;border:1px solid #f47067;display:block}
+.feedback.hint{background:#2b2112;color:var(--amber);border:1px solid var(--amber);display:block}
+.hint-btn{margin-top:8px;background:none;color:var(--dim);border:1px solid var(--line);
+          padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+.hint-btn:hover{color:var(--fg)}
+.step-num{display:inline-block;background:var(--amber);color:#0d1117;border-radius:50%;
+          width:24px;height:24px;text-align:center;line-height:24px;font-weight:800;
+          font-size:12px;margin-right:8px}
+</style>
+
+<div class="guide-step">
+  <h4><span class="step-num">1</span>Kinetic energy \(T\)</h4>
+  <p class="prompt">The bob moves on a circle of radius \(\ell\). Its speed is \(v = \ell\dot\theta\). Write a Python function <code>kinetic_energy(m, l, theta_dot)</code> that returns \(T = \tfrac{1}{2}m\ell^2\dot\theta^2\).</p>
+  <textarea class="code-area" id="code1" rows="3" spellcheck="false">def kinetic_energy(m, l, theta_dot):
+    return </textarea>
+  <button class="run-btn" onclick="check(1)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(1)">Show hint</button>
+  <div class="feedback" id="fb1"></div>
+  <div class="feedback hint" id="hint1" style="display:none">Hint: \(T = \tfrac{1}{2} \times m \times \ell^2 \times \dot\theta^2\). In Python: <code>0.5 * m * l**2 * theta_dot**2</code></div>
+</div>
+
+<div class="guide-step">
+  <h4><span class="step-num">2</span>Potential energy \(V\)</h4>
+  <p class="prompt">The pivot is the reference height. The bob hangs at height \(-\ell\cos\theta\) below it, so \(V = -mg\ell\cos\theta\). Write <code>potential_energy(m, l, g, theta)</code>.</p>
+  <textarea class="code-area" id="code2" rows="3" spellcheck="false">import numpy as np
+
+def potential_energy(m, l, g, theta):
+    return </textarea>
+  <button class="run-btn" onclick="check(2)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(2)">Show hint</button>
+  <div class="feedback" id="fb2"></div>
+  <div class="feedback hint" id="hint2" style="display:none">Hint: \(V = -m \times g \times \ell \times \cos\theta\). In Python: <code>-m * g * l * np.cos(theta)</code></div>
+</div>
+
+<div class="guide-step">
+  <h4><span class="step-num">3</span>The Lagrangian \(L = T - V\)</h4>
+  <p class="prompt">Combine the previous two. Write <code>lagrangian(m, l, g, theta, theta_dot)</code> that returns \(L = T - V\).</p>
+  <textarea class="code-area" id="code3" rows="5" spellcheck="false">def lagrangian(m, l, g, theta, theta_dot):
+    T = 0.5 * m * l**2 * theta_dot**2
+    V = -m * g * l * np.cos(theta)
+    return </textarea>
+  <button class="run-btn" onclick="check(3)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(3)">Show hint</button>
+  <div class="feedback" id="fb3"></div>
+  <div class="feedback hint" id="hint3" style="display:none">Hint: the Lagrangian is kinetic <em>minus</em> potential: <code>T - V</code></div>
+</div>
+
+<div class="guide-step">
+  <h4><span class="step-num">4</span>Generalised momentum \(p_\theta = \partial L/\partial\dot\theta\)</h4>
+  <p class="prompt">The generalised momentum is the derivative of \(L\) with respect to \(\dot\theta\). For our pendulum \(L = \tfrac{1}{2}m\ell^2\dot\theta^2 + mg\ell\cos\theta\), so \(p_\theta = m\ell^2\dot\theta\). Write <code>momentum(m, l, theta_dot)</code>.</p>
+  <textarea class="code-area" id="code4" rows="3" spellcheck="false">def momentum(m, l, theta_dot):
+    return </textarea>
+  <button class="run-btn" onclick="check(4)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(4)">Show hint</button>
+  <div class="feedback" id="fb4"></div>
+  <div class="feedback hint" id="hint4" style="display:none">Hint: \(p_\theta = m \times \ell^2 \times \dot\theta\). In Python: <code>m * l**2 * theta_dot</code></div>
+</div>
+
+<div class="guide-step">
+  <h4><span class="step-num">5</span>The Hamiltonian \(H = T(p) + V(\theta)\)</h4>
+  <p class="prompt">Re-express kinetic energy in terms of \(p_\theta\): since \(p_\theta = m\ell^2\dot\theta\), we have \(\dot\theta = p_\theta/(m\ell^2)\), so \(T = p_\theta^2/(2m\ell^2)\). Write <code>hamiltonian(m, l, g, theta, p)</code> that returns \(H = \dfrac{p^2}{2m\ell^2} - mg\ell\cos\theta\).</p>
+  <textarea class="code-area" id="code5" rows="4" spellcheck="false">def hamiltonian(m, l, g, theta, p):
+    return </textarea>
+  <button class="run-btn" onclick="check(5)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(5)">Show hint</button>
+  <div class="feedback" id="fb5"></div>
+  <div class="feedback hint" id="hint5" style="display:none">Hint: <code>p**2 / (2*m*l**2) - m*g*l*np.cos(theta)</code></div>
+</div>
+
+<div class="guide-step">
+  <h4><span class="step-num">6</span>Hamilton's equations: \(\dot\theta\) and \(\dot p_\theta\)</h4>
+  <p class="prompt">The equations of motion come from differentiating \(H\). Write <code>hamiltons_equations(m, l, g, theta, p)</code> that returns a tuple <code>(theta_dot, p_dot)</code> where:<br>
+  \(\dot\theta = \partial H/\partial p = p/(m\ell^2)\) and \(\dot p = -\partial H/\partial\theta = -mg\ell\sin\theta\).</p>
+  <textarea class="code-area" id="code6" rows="5" spellcheck="false">def hamiltons_equations(m, l, g, theta, p):
+    theta_dot =
+    p_dot     =
+    return theta_dot, p_dot</textarea>
+  <button class="run-btn" onclick="check(6)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(6)">Show hint</button>
+  <div class="feedback" id="fb6"></div>
+  <div class="feedback hint" id="hint6" style="display:none">Hint: <code>theta_dot = p / (m * l**2)</code> and <code>p_dot = -m * g * l * np.sin(theta)</code></div>
+</div>
+
+<div class="guide-step">
+  <h4><span class="step-num">7</span>Verify energy conservation</h4>
+  <p class="prompt">A key test: under Hamilton's equations, \(H\) should be constant over time. Simulate 1000 steps with step-size \(h = 0.01\) s using the symplectic Euler method (<code>p_new = p + h * p_dot</code>, then <code>theta_new = theta + h * theta_dot_new</code>). Start at \(\theta_0 = 1.0\) rad, \(p_0 = 0\). Print the <strong>maximum</strong> fractional energy change over the run.</p>
+  <textarea class="code-area" id="code7" rows="14" spellcheck="false">m, l, g = 1.0, 1.0, 9.81
+theta, p = 1.0, 0.0
+h = 0.01
+H0 = hamiltonian(m, l, g, theta, p)
+max_err = 0.0
+
+for _ in range(1000):
+    _, p_dot = hamiltons_equations(m, l, g, theta, p)
+    p = p + h * p_dot
+    theta_dot, _ = hamiltons_equations(m, l, g, theta, p)
+    theta = theta + h * theta_dot
+    err = abs((hamiltonian(m, l, g, theta, p) - H0) / H0)
+    if err > max_err:
+        max_err = err
+
+print(f"Max fractional energy error: {max_err:.2e}")</textarea>
+  <button class="run-btn" onclick="check(7)">Run &amp; Check</button>
+  <button class="hint-btn" onclick="showHint(7)">Show hint</button>
+  <div class="feedback" id="fb7"></div>
+  <div class="feedback hint" id="hint7" style="display:none">Hint: the code above is complete — just make sure your <code>hamiltonian</code> and <code>hamiltons_equations</code> functions from the earlier steps are correct. The error should be very small (≪ 1%). If it is large, revisit step 5 or 6.</div>
+</div>
+
+<script>
+(function(){
+  const m=1.0, l=1.0, g=9.81;
+
+  const CHECKS = {
+    1: {
+      fn: `kinetic_energy`,
+      tests: [[m,l,0],[m,l,1],[m,l,2],[2,1.5,3]],
+      expected: function(args){ return 0.5*args[0]*args[1]**2*args[2]**2; },
+      ok: "Correct! ½ mℓ²θ̇² gives the kinetic energy of circular motion.",
+      wrong: "Not quite. For circular motion the speed is v = ℓθ̇, so T = ½ m(ℓθ̇)² = ½ mℓ²θ̇²."
+    },
+    2: {
+      fn: `potential_energy`,
+      tests: [[m,l,g,0],[m,l,g,Math.PI/2],[m,l,g,Math.PI]],
+      expected: function(args){ return -args[0]*args[3]*args[1]*Math.cos(args[2]); },
+      ok: "Correct! V = −mgℓcosθ. At θ=0 (lowest point) V is most negative; at θ=π (top) V is largest.",
+      wrong: "Not quite. With pivot as reference height, the bob sits at y = −ℓcosθ, so V = mg(−ℓcosθ) = −mgℓcosθ. Remember to use np.cos."
+    },
+    3: {
+      fn: `lagrangian`,
+      tests: [[m,l,g,0,0],[m,l,g,0,1],[m,l,g,Math.PI/4,2],[m,l,g,Math.PI/2,0.5]],
+      expected: function(args){ const T=0.5*args[0]*args[1]**2*args[4]**2, V=-args[0]*args[2]*args[1]*Math.cos(args[3]); return T-V; },
+      ok: "Correct! L = T − V = ½mℓ²θ̇² + mgℓcosθ.",
+      wrong: "Not quite. L = T − V, which is (kinetic energy) minus (potential energy)."
+    },
+    4: {
+      fn: `momentum`,
+      tests: [[m,l,0],[m,l,1],[m,l,3],[2,1.5,2]],
+      expected: function(args){ return args[0]*args[1]**2*args[2]; },
+      ok: "Correct! pθ = mℓ²θ̇ is the angular momentum of the bob.",
+      wrong: "Not quite. pθ = ∂L/∂θ̇ = mℓ²θ̇."
+    },
+    5: {
+      fn: `hamiltonian`,
+      tests: [[m,l,g,0,0],[m,l,g,0,1],[m,l,g,Math.PI/4,2],[m,l,g,Math.PI,0]],
+      expected: function(args){ return args[4]**2/(2*args[0]*args[1]**2) - args[0]*args[3]*args[1]*Math.cos(args[2]); },
+      ok: "Correct! H = p²/(2mℓ²) − mgℓcosθ. This is the total energy expressed in terms of (θ, p).",
+      wrong: "Not quite. H = T + V = p²/(2mℓ²) + (−mgℓcosθ) = p²/(2mℓ²) − mgℓcosθ."
+    },
+    6: {
+      fn: `hamiltons_equations`,
+      tests: [[m,l,g,0,1],[m,l,g,Math.PI/4,0],[m,l,g,Math.PI/2,2]],
+      expected: function(args){ return [args[4]/(args[0]*args[1]**2), -args[0]*args[3]*args[1]*Math.sin(args[2])]; },
+      ok: "Correct! θ̇ = p/(mℓ²) is angular velocity; ṕ = −mgℓsinθ is the restoring torque. Hamilton's equations in action.",
+      wrong: "Not quite. θ̇ = ∂H/∂p = p/(mℓ²) and ṕ = −∂H/∂θ = −mgℓsinθ."
+    },
+    7: {
+      special: true,
+      ok: "Energy is well conserved (error ≪ 1%). The symplectic Euler method preserves the structure of Hamiltonian mechanics.",
+      warn: "Energy error is larger than expected. Check that your hamiltonian and hamiltons_equations functions from steps 5–6 are correct, and that the loop uses the new p to compute theta_dot (symplectic order matters).",
+      threshold: 0.05
+    }
+  };
+
+  // Accumulate user definitions between steps
+  const env = {};
+
+  window.showHint = function(n){
+    const h = document.getElementById('hint'+n);
+    h.style.display = h.style.display==='none' ? 'block' : 'none';
+  };
+
+  window.check = function(n){
+    const code = document.getElementById('code'+n).value;
+    const fb = document.getElementById('fb'+n);
+    fb.className = 'feedback';
+    fb.style.display = 'none';
+
+    // Build a safe evaluation context with previous definitions + numpy stub
+    const pyToJs = code
+      .replace(/import numpy as np\n?/g,'')
+      .replace(/np\.cos/g,'Math.cos')
+      .replace(/np\.sin/g,'Math.sin')
+      .replace(/np\.sqrt/g,'Math.sqrt')
+      .replace(/np\.pi/g,'Math.PI')
+      .replace(/\*\*/g,'**');  // ** is valid in modern JS too
+
+    // Inject previous definitions
+    let fullCode = '';
+    for(const k in env) fullCode += env[k] + '\n';
+    fullCode += pyToJs;
+
+    try {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function(fullCode + '\nreturn typeof hamiltons_equations !== "undefined" ? {kinetic_energy, potential_energy, lagrangian, momentum, hamiltonian, hamiltons_equations} : {kinetic_energy:typeof kinetic_energy!=="undefined"?kinetic_energy:undefined, potential_energy:typeof potential_energy!=="undefined"?potential_energy:undefined, lagrangian:typeof lagrangian!=="undefined"?lagrangian:undefined, momentum:typeof momentum!=="undefined"?momentum:undefined, hamiltonian:typeof hamiltonian!=="undefined"?hamiltonian:undefined};');
+    } catch(e) {}
+
+    // Per-step evaluation
+    const c = CHECKS[n];
+    if(c.special) {
+      // Step 7: run simulation
+      try {
+        let allCode = '';
+        for(const k in env) allCode += env[k] + '\n';
+        allCode += pyToJs;
+        // eslint-disable-next-line no-new-func
+        const runner = new Function(
+          ['Math'],
+          allCode + '\nreturn max_err;'
+        );
+        const err = runner(Math);
+        env['step'+n] = pyToJs;
+        if(typeof err === 'number' && err < c.threshold){
+          fb.className='feedback ok'; fb.textContent = '✓  '+c.ok;
+        } else {
+          fb.className='feedback hint'; fb.textContent = '⚠  '+c.warn+' (got '+( typeof err==='number'?err.toExponential(2):'undefined')+')';
+        }
+      } catch(e){
+        fb.className='feedback err'; fb.textContent='Error: '+e.message;
+      }
+    } else {
+      // Standard steps: evaluate function against test cases
+      try {
+        let allCode = '';
+        for(const k in env) allCode += env[k] + '\n';
+        allCode += pyToJs;
+        // eslint-disable-next-line no-new-func
+        const scope = new Function(['Math'], allCode + '\nreturn {'+c.fn+'};')(Math);
+        const f = scope[c.fn];
+        if(typeof f !== 'function') throw new Error('Function '+c.fn+' not found — check the function name and indentation.');
+        let pass = true;
+        for(const args of c.tests){
+          const got = f(...args);
+          const exp = c.expected(args);
+          let close;
+          if(Array.isArray(exp)){
+            close = Array.isArray(got) && exp.every((e,i)=>Math.abs(got[i]-e)<1e-8);
+          } else {
+            close = Math.abs(got - exp) < 1e-8;
+          }
+          if(!close){ pass=false; break; }
+        }
+        env['step'+n] = pyToJs;
+        if(pass){
+          fb.className='feedback ok'; fb.textContent='✓  '+c.ok;
+        } else {
+          fb.className='feedback err'; fb.textContent='✗  '+c.wrong;
+        }
+      } catch(e){
+        fb.className='feedback err'; fb.textContent='Error: '+e.message;
+      }
+    }
+    fb.style.display='block';
+  };
+})();
+</script>
+
+<!-- ==================================================================== -->
+<h2 id="l2">Level 2 — Working knowledge <span class="level" style="background:#0f2d47;color:var(--blue)">some calculus</span></h2>
+
+<h3 id="recipe">Building \(H\) yourself: the four-step recipe</h3>
+
+<p>For any standard mechanical system:</p>
+
+<ol>
+<li><strong>Choose coordinates \(q\).</strong> Anything that pins down the configuration: an angle, a length, a set of \(xyz\) triples. These are "generalised" coordinates — you are free to pick whatever is convenient, and this freedom is a large part of the method's power.</li>
+<li><strong>Write the Lagrangian</strong> \(L = T - V\), kinetic minus potential, in terms of \(q\) and velocity \(\dot q\).</li>
+<li><strong>Define the conjugate momentum</strong> \(\displaystyle p=\frac{\partial L}{\partial \dot q}\). For simple cases this returns the familiar \(mv\); for rotation it returns angular momentum; in a magnetic field it returns something with an extra term that is genuinely <em>not</em> \(mv\).</li>
+<li><strong>Legendre transform:</strong> \(H = p\dot q - L\), then <strong>eliminate \(\dot q\) everywhere</strong> in favour of \(p\). This last step is mandatory and is where people slip.</li>
+</ol>
+
+<h3 id="legendre">What the Legendre transform actually does</h3>
+
+<p>The name is intimidating; the operation is not. The Legendre transform is a change of <em>address system</em>, not a change of content.</p>
+
+<p>A convex curve can be described two ways. The obvious way: list every point \((x, f(x))\). The other way: for every possible <em>slope</em>, record the tangent line with that slope. Both descriptions carry identical information — you can rebuild the curve from its family of tangent lines. The transform swaps you from "indexed by position" to "indexed by slope".</p>
+
+<figure>
+<img alt="legendre.png" src="legendre.png"><figcaption>The Lagrangian is a function of velocity \(\dot q\). Its slope at each point is precisely the momentum \(p\). The Legendre transform re-indexes the same information by that slope: instead of asking "what is L at this velocity?", it asks "which velocity has this momentum, and what is the tangent line's intercept there?" The negative intercept is \(H(p)\). No physics is added or lost — only the labelling changes.</figcaption>
+</figure>
+
+<div class="box purple">
+<h4>Why bother swapping variables at all?</h4>
+<p style="margin-bottom:0">Because it converts <strong>one second-order equation into two first-order ones</strong>. Lagrangian mechanics gives you \(\ddot q = \ldots\) — an accelerating second-order beast. Hamilton gives \(\dot q = \ldots,\ \dot p = \ldots\): a plain first-order flow on phase space. First-order flows are the natural language of geometry, of numerical integration, and of every ODE solver and neural-ODE library ever written. The swap is what makes everything downstream tractable.</p>
+</div>
+
+<h3 id="worked">Worked example, end to end: the simple pendulum</h3>
+
+<p>Mass \(m\), rod length \(\ell\), angle \(\theta\) from the downward vertical.</p>
+
+<p><strong>Step 1 — coordinate.</strong> \(q=\theta\). One number fixes the configuration, so one degree of freedom.</p>
+
+<p><strong>Step 2 — Lagrangian.</strong> The bob's speed is \(\ell\dot\theta\), and its height above the lowest point is \(\ell(1-\cos\theta)\):</p>
+$$L = \tfrac{1}{2}m\ell^2\dot\theta^2 - mg\ell(1-\cos\theta)$$
+
+<p><strong>Step 3 — conjugate momentum.</strong></p>
+$$p_\theta=\frac{\partial L}{\partial\dot\theta}=m\ell^2\dot\theta \quad\Longrightarrow\quad \dot\theta=\frac{p_\theta}{m\ell^2}$$
+<p>Note this is angular momentum, not linear momentum — the coordinate you chose dictates what "momentum" means.</p>
+
+<p><strong>Step 4 — transform.</strong></p>
+$$H = p_\theta\dot\theta - L = \frac{p_\theta^2}{2m\ell^2} + mg\ell(1-\cos\theta)$$
+
+<p>Kinetic plus potential, as promised, and critically <em>with no \(\dot\theta\) left anywhere</em>. Now apply the two equations:</p>
+$$\dot\theta = \frac{\partial H}{\partial p_\theta} = \frac{p_\theta}{m\ell^2}, \qquad \dot p_\theta = -\frac{\partial H}{\partial \theta} = -mg\ell\sin\theta$$
+<p>Combining them recovers the textbook \(\ddot\theta = -(g/\ell)\sin\theta\). Same physics, arrived at without ever resolving a force into components — which is exactly why this scales to systems where drawing force diagrams would be hopeless.</p>
+
+<h3 id="when">When \(H = T + V\) is <span class="warn">wrong</span></h3>
+
+<p>Most courses quietly imply \(H\) is always the energy. It isn't, and knowing the exceptions separates people who can use this from people who can only recite it.</p>
+
+<table>
+<tr><th>Condition</th><th>Consequence</th></tr>
+<tr><td>\(L\) has no explicit \(t\)</td><td>\(H\) is <span class="key">conserved</span> along trajectories.</td></tr>
+<tr><td>Constraints are time-independent <em>and</em> \(T\) is quadratic in \(\dot q\)</td><td>\(H\) <span class="key">equals the total energy</span>.</td></tr>
+<tr><td>Rotating frame, moving constraint, time-varying field</td><td>\(H\) may be conserved but is <span class="warn">not</span> the energy (e.g. the Jacobi integral in orbital mechanics).</td></tr>
+<tr><td>Explicit time dependence, \(\partial H/\partial t\neq0\)</td><td>\(H\) is <span class="warn">not conserved</span>: \(dH/dt=\partial H/\partial t\).</td></tr>
+<tr><td>Friction, drag, any dissipation</td><td>Not Hamiltonian at all without extending the framework (see <a href="#frontier">port-Hamiltonian</a>).</td></tr>
+</table>
+
+<p><strong>The failure mode that matters most for machine learning:</strong> step 3 must be <em>invertible</em>. You need to solve \(p=\partial L/\partial\dot q\) for \(\dot q\). This works when the mass matrix \(\partial^2L/\partial\dot q^2\) is non-singular. When it is singular — as in genuinely relativistic systems, gauge theories, or systems with hidden constraints — the transform is undefined, and you need the machinery of constrained (Dirac) Hamiltonian systems. <strong>This is precisely the "sometimes there simply is no usable version" problem</strong>, and it is the single strongest technical argument for Lagrangian neural networks over Hamiltonian ones. We return to it in <a href="#vslnn">Level 5</a>.</p>
+
+<!-- ==================================================================== -->
+<h2 id="l3">Level 3 — The real structure <span class="level" style="background:#3d2a12;color:var(--amber)">the beautiful part</span></h2>
+
+<h3 id="geometry">It's a rotation, not a gradient</h3>
+
+<p>Stack position and momentum into one state vector \(x=(q,p)\). Hamilton's two equations collapse into one:</p>
+
+$$\dot x = J\,\nabla H, \qquad J=\begin{pmatrix}0&1\\-1&0\end{pmatrix}$$
+
+<p>Stare at \(J\). In two dimensions, that matrix rotates a vector by 90°. So the equation reads:</p>
+
+<div class="box green">
+<p style="margin:0;font-size:17px"><strong>The system always moves at right angles to the steepest-ascent direction of \(H\).</strong></p>
+</div>
+
+<p>This one line explains everything from Level 1. Gradient descent — what almost every ML optimiser does — moves <em>along</em> \(-\nabla H\), straight downhill, and the objective decreases. Hamiltonian flow moves <em>perpendicular</em> to \(\nabla H\), so the objective <strong>never changes at all</strong>. Physics is not optimising energy. It is circulating around it.</p>
+
+<p>The proof of energy conservation is now two lines, and worth doing yourself:</p>
+$$\frac{dH}{dt}=\nabla H\cdot\dot x=\nabla H\cdot J\nabla H=0$$
+<p>The final step holds because \(J\) is <strong>antisymmetric</strong> (\(J^\top=-J\)), and \(v\cdot Jv=0\) for any antisymmetric \(J\) and any \(v\) whatsoever. Notice what this argument did <em>not</em> use: nothing about pendulums, nothing about what \(H\) is, no special case. Energy conservation is a <strong>structural consequence of the antisymmetry of \(J\)</strong>, nothing more.</p>
+
+<div class="box blue">
+<h4>Why this is the key insight for machine learning</h4>
+<p style="margin-bottom:0">If you build a model whose output is \(J\nabla H_\vartheta\) for a learned scalar \(H_\vartheta\), then <em>whatever</em> the network learns — however badly trained, however wrong — the resulting dynamics conserve \(H_\vartheta\) <strong>exactly</strong>. Not approximately. Not with a penalty term. It's a theorem about the architecture, not a property of the fit. That is what "inductive bias" means at its most powerful: making an entire class of errors <em>unrepresentable</em>.</p>
+</div>
+
+<h3 id="poisson">Poisson brackets: the algebra of change</h3>
+
+<p>For any quantity \(f(q,p)\) — energy, angular momentum, anything at all — its rate of change along the flow is</p>
+$$\frac{df}{dt}=\{f,H\}, \qquad \{f,g\}\equiv\frac{\partial f}{\partial q}\frac{\partial g}{\partial p}-\frac{\partial f}{\partial p}\frac{\partial g}{\partial q}$$
+
+<p>The <strong>Poisson bracket</strong> \(\{\cdot,\cdot\}\) turns dynamics into algebra. Consequences worth internalising:</p>
+<ul>
+<li>\(\{H,H\}=0\) automatically, so energy is conserved — same theorem, new clothes.</li>
+<li>Any \(f\) with \(\{f,H\}=0\) is a <strong>conserved quantity</strong>. Finding conservation laws becomes: find things that commute with \(H\).</li>
+<li>\(H\) is not merely a number — it is the <strong>generator of time translation</strong>. Momentum generates spatial translation, angular momentum generates rotation. Each conserved quantity <em>is</em> the symmetry it protects.</li>
+<li>Replace \(\{f,g\}\) with \(\frac{1}{i\hbar}[\hat f,\hat g]\) and classical mechanics becomes <strong>quantum mechanics</strong>. The Schrödinger equation \(i\hbar\,\partial_t\psi=\hat H\psi\) is this same statement, with \(\hat H\) the Hamiltonian operator. This is not an analogy — it is the historical and structural bridge, and it is why "Hamiltonian" is the central object in quantum theory too.</li>
+</ul>
+
+<h3 id="liouville">Liouville's theorem: phase space is incompressible</h3>
+
+<p>Take a whole cloud of starting states — a blob of uncertainty about where your system actually is. Let every point flow. The blob stretches, shears, and eventually gets whipped into a filamentary mess. But its <strong>area is exactly constant</strong>, forever.</p>
+
+<figure>
+<img alt="liouville.gif" src="liouville.gif"><figcaption>A blob of initial conditions evolving under pendulum dynamics. It distorts violently — but the measured area (printed live) does not move in the significant digits. Hamiltonian flow is <em>incompressible</em>: \(\nabla\cdot\dot x = \nabla\cdot(J\nabla H)=0\) identically.</figcaption>
+</figure>
+
+<p>The consequences are large and reach well outside physics:</p>
+<ul>
+<li><strong>No attractors are possible.</strong> A Hamiltonian system can never settle into a fixed point or limit cycle, because that would require a volume of states to shrink to zero. Damped systems have attractors precisely because they are <em>not</em> Hamiltonian.</li>
+<li><strong>Information is never destroyed.</strong> Uncertainty is conserved, not reduced. It gets stirred into unrecognisable shapes — which is what makes chaos <em>look</em> like information loss without it actually being so.</li>
+<li><strong>Statistical mechanics needs this</strong> to define equilibrium ensembles at all.</li>
+<li><strong>Normalising flows and Hamiltonian Monte Carlo need it</strong>, because a volume-preserving map has unit Jacobian determinant — so the change-of-variables correction is exactly 1 and you get it for free.</li>
+</ul>
+
+<h3 id="noether">Noether: symmetry ⇒ conservation</h3>
+
+<p>Perhaps the deepest statement in classical physics, and in this language it is almost a triviality:</p>
+
+<table>
+<tr><th>If \(H\) doesn't change when you…</th><th>…then this is conserved</th></tr>
+<tr><td>shift the system in space</td><td>linear momentum</td></tr>
+<tr><td>rotate the system</td><td>angular momentum</td></tr>
+<tr><td>shift the clock</td><td>energy</td></tr>
+<tr><td>change the quantum phase</td><td>electric charge</td></tr>
+</table>
+
+<p>Conservation laws are not separate empirical facts to be discovered one by one. They are <strong>shadows of symmetries of \(H\)</strong>. This is why building symmetry into a model architecture is so effective: you are not adding a hint, you are installing a conservation law.</p>
+
+<h3 id="chaos">Integrability, chaos, and why constrained ≠ predictable</h3>
+
+<p>A system with \(n\) degrees of freedom and \(n\) independent conserved quantities in involution is <strong>integrable</strong> — solvable in closed form, with motion confined to a torus in phase space. The single pendulum is integrable. The overwhelming majority of systems are not.</p>
+
+<figure>
+<img alt="double_pendulum.gif" src="double_pendulum.gif"><figcaption>A double pendulum. The trajectory is chaotic in the technical sense: nearby initial conditions separate exponentially, so long-term prediction is impossible in practice. And yet the total energy \(H\) is pinned to roughly one part in \(10^{10}\) — that residual is the numerical integrator's error, not physics. <strong>Chaotic and constrained are entirely compatible.</strong></figcaption>
+</figure>
+
+<div class="box amber">
+<h4>The distinction worth taking away</h4>
+<p style="margin-bottom:0"><strong>Complicated behaviour is not the same as absent rules.</strong> The double pendulum is unpredictable and perfectly lawful at the same time. Chaos limits how far ahead you can forecast a <em>specific trajectory</em>; it places no limit whatsoever on the <em>constraints</em>. A model that learns constraints therefore stays meaningful long after a model that learned trajectories has become noise — which is the entire argument for physics-structured ML.</p>
+</div>
+
+<p>Between integrable and fully chaotic sits the <strong>KAM theorem</strong>: perturb an integrable system slightly and most invariant tori survive, deformed. This is why the solar system is stable enough to have planets, and it is one of the great results of 20th-century mathematics.</p>
+
+<!-- ==================================================================== -->
+<h2 id="l4">Level 4 — Computation <span class="level" style="background:#3a1230;color:var(--pink)">practical</span></h2>
+
+<h3 id="integrators">Symplectic integrators: why your ODE solver is lying</h3>
+
+<p>Simulate a frictionless oscillator with a standard solver and the energy drifts. The pendulum slowly dies, or slowly winds up. Nothing in the physics does that — the <em>integrator</em> injected or drained energy. This is exactly the failure mode people describe in neural rollouts, and it is instructive that a plain numerical method suffers it too.</p>
+
+<figure>
+<img alt="integrators.gif" src="integrators.gif"><figcaption>Same system, same step size, three methods. <span style="color:#f778ba"><b>Explicit Euler</b></span> spirals outward — it manufactures energy from nothing and eventually explodes. <span style="color:#d29922"><b>RK4</b></span> is far more accurate per step yet still bleeds energy on long horizons. <span style="color:#3fb950"><b>Symplectic Euler</b></span> is the <em>least</em> accurate of the three per step, but its energy error stays bounded forever and its orbit stays closed. Accuracy and structural fidelity are different objectives.</figcaption>
+</figure>
+
+<p>The fix is a one-character change to Euler's method:</p>
+
+<pre><code># Explicit Euler — NOT symplectic, energy blows up
+q_new = q + h * p
+p_new = p - h * q          # both updates use OLD values
+
+# Symplectic Euler — energy stays bounded forever
+p_new = p - h * q
+q_new = q + h * p_new      # <-- uses the NEW momentum
+</code></pre>
+
+<p>That is the whole difference. Feeding the freshly-updated momentum into the position update makes the map <strong>area-preserving in phase space</strong>, which is the discrete echo of Liouville's theorem.</p>
+
+<p>The workhorse in practice is <strong>leapfrog / velocity Verlet</strong>, second-order and time-reversible:</p>
+<pre><code>p_half = p - (h/2) * dV_dq(q)     # half kick
+q_new  = q + h * p_half / m       # full drift
+p_new  = p_half - (h/2) * dV_dq(q_new)   # half kick
+</code></pre>
+<p>It is the reason molecular-dynamics simulations can run for billions of steps and planetary integrations can run for billions of years without dissolving.</p>
+
+<h3 id="shadow">Why it works: the shadow Hamiltonian</h3>
+
+<p>Here is the beautiful explanation. A symplectic integrator does <em>not</em> conserve your \(H\) exactly. What it does is <strong>exactly solve a slightly different problem</strong>: there exists a nearby "shadow" Hamiltonian</p>
+$$\tilde H = H + h^2 H_2 + h^4 H_4 + \cdots$$
+<p>which the discrete map conserves to exponentially small error. Your simulation is the perfect trajectory of a system that is a tiny perturbation of the one you asked for. Since \(\tilde H\) stays within \(O(h^2)\) of \(H\) forever, the energy error <strong>oscillates within a bounded band instead of accumulating</strong>.</p>
+
+<p>Non-symplectic methods have no such shadow. Their errors have no conserved quantity to hold them in place, so they perform a random walk that grows without limit. This is the sharpest available statement of "structure beats accuracy on long horizons" — and it transfers directly to learned models.</p>
+
+<h3 id="lab">Interactive lab</h3>
+<p>Run it yourself. Increase the step size until Euler detonates, and watch how the symplectic method degrades gracefully instead of catastrophically.</p>
+
+<div class="lab">
+  <div class="ctrl">
+    <span>
+      <button id="bEuler" class="on">Euler</button>
+      <button id="bSymp" class="on">Symplectic</button>
+      <button id="bRk4" class="on">RK4</button>
+    </span>
+    <label>step size <span class="mono" id="dtv">0.20</span><br><input id="dt" type="range" min="2" max="60" value="20"></label>
+    <label>system
+      <select id="sys" style="background:#1b2430;color:#e6edf3;border:1px solid #2b3543;border-radius:6px;padding:5px">
+        <option value="sho">harmonic oscillator</option>
+        <option value="pend">nonlinear pendulum</option>
+      </select>
+    </label>
+    <button id="reset">restart</button>
+  </div>
+  <div class="grid2">
+    <div><canvas id="cPhase" width="440" height="330"></canvas>
+      <div class="readout" style="text-align:center">phase space (q, p)</div></div>
+    <div><canvas id="cEnergy" width="440" height="330"></canvas>
+      <div class="readout" style="text-align:center">energy vs time</div></div>
+  </div>
+  <div class="readout" id="ro"></div>
+</div>
+
+<!-- ==================================================================== -->
+<h2 id="l5">Level 5 — Machine learning <span class="level" style="background:#2b1f45;color:var(--purple)">research level</span></h2>
+
+<h3 id="hnn">Hamiltonian Neural Networks</h3>
+
+<p>The idea, from Greydanus, Dzamba &amp; Yosinski (NeurIPS 2019), is almost aggressively simple.</p>
+
+<p><strong>The baseline approach:</strong> a network maps state to its time derivative, \((q,p)\mapsto(\dot q,\dot p)\). Nothing prevents the learned vector field from having sources, sinks, or spirals. Energy conservation is not even expressible as a constraint — so it is violated, and the violations compound over a rollout.</p>
+
+<p><strong>The HNN approach:</strong> the network outputs a <em>single scalar</em> \(H_\vartheta(q,p)\). The dynamics are then obtained by differentiating it:</p>
+$$\hat{\dot q}=\frac{\partial H_\vartheta}{\partial p},\qquad \hat{\dot p}=-\frac{\partial H_\vartheta}{\partial q}$$
+<p>and the loss compares those to the observed derivatives:</p>
+$$\mathcal{L}=\left\|\frac{\partial H_\vartheta}{\partial p}-\dot q\right\|^2+\left\|\frac{\partial H_\vartheta}{\partial q}+\dot p\right\|^2$$
+
+<p>Training now requires differentiating <em>through</em> a gradient, so you need second derivatives. And the payoff is that conservation is <strong>structural</strong>: the model cannot represent a non-conservative field even if it wanted to.</p>
+
+<p>I trained both models from scratch in pure NumPy — no autodiff library, second derivatives worked out by hand — on noisy observations of a mass-spring system:</p>
+
+<figure>
+<img alt="hnn_results.png" src="hnn_results.png"><figcaption>Both models fit the training data <em>equally well</em> (panel 4: the losses are indistinguishable, ~0.0026 each). The difference appears only when you roll them forward. Over a long rollout the baseline loses <b>94% of its energy</b> and spirals into the origin; the HNN drifts by <b>2.1%</b>, and that residual is the RK4 integrator, not the model. Panel 6 shows the network recovered the correct circular level sets of \(H\) — from derivative observations alone, never having been shown an energy value.</figcaption>
+</figure>
+
+<div class="box pink">
+<h4>The lesson hiding in panel 4</h4>
+<p style="margin-bottom:0"><strong>Equal training loss, radically different physics.</strong> No amount of monitoring the loss curve would have told you the baseline was broken. The failure is invisible in-distribution and only surfaces on long horizons — which is exactly why "just scale it up" doesn't fix it. More data teaches the model the same shortcut more confidently.</p>
+</div>
+
+<h3 id="code">The code, explained</h3>
+
+<p>The one genuinely subtle part is the backward pass. With \(z=W_1x+b_1\), \(h=\tanh z\), \(H=w_2^\top h\), the state-gradient is \(\nabla_x H = W_1^\top s\) where \(s_k=w_{2k}(1-h_k^2)\). Because the <em>output</em> already contains a derivative, the gradient w.r.t. the weights picks up a second-derivative term:</p>
+
+<pre><code>def hnn_forward(P, X):
+    Z  = X @ P["W1"].T + P["b1"]
+    Hh = np.tanh(Z); Hp = 1 - Hh**2
+    S  = Hp * P["W2"][0]           # s_k = w2_k * tanh'(z_k)
+    G  = S @ P["W1"]               # grad_x H
+    return G @ J.T, ...            # symplectic 90-degree turn
+
+def hnn_grads(P, X, Y):
+    F, c = hnn_forward(P, X)
+    dF = 2*(F - Y) / (len(X)*2)
+    U  = dF @ J                    # dL/d(grad H)
+    C  = U @ P["W1"].T             # dL/dS
+    Dz = C * c["w2"] * (-2*c["Hh"]*c["Hp"])   # <-- the second-derivative term
+    return dict(W1 = c["S"].T @ U + Dz.T @ X, # two paths into W1
+                b1 = Dz.sum(0),
+                W2 = (C * c["Hp"]).sum(0)[None,:],
+                b2 = np.zeros(1))             # note: b2 gets no gradient
+</code></pre>
+
+<div class="box">
+<h4>Three things that trip people up</h4>
+<ul style="margin-bottom:0">
+<li><strong>\(W_1\) receives gradient along two paths</strong> — once because it appears explicitly in \(\nabla_x H=W_1^\top s\), and once through \(z\). Miss either and training silently underperforms.</li>
+<li><strong>The output bias \(b_2\) has exactly zero gradient.</strong> Only <em>derivatives</em> of \(H\) are observable, so the absolute energy offset is fundamentally unidentifiable. Your learned \(H\) is correct up to an additive constant — which is why panel 6 above compares contour <em>shapes</em>, not values.</li>
+<li><strong>Use a smooth activation.</strong> ReLU has zero second derivative almost everywhere, which destroys the gradients above. <code>tanh</code>, <code>softplus</code>, or <code>sin</code> are the standard choices.</li>
+</ul>
+</div>
+
+<h3 id="vslnn">HNN vs LNN: the coordinate problem, precisely stated</h3>
+
+<p>Hamiltonian methods want <strong>canonical coordinates</strong> \((q,p)\) with \(p=\partial L/\partial\dot q\). Lagrangian Neural Networks want \((q,\dot q)\) — positions and velocities. That distinction sounds pedantic and is in fact decisive:</p>
+
+<table>
+<tr><th></th><th>HNN</th><th>LNN</th></tr>
+<tr><td>Learns</td><td>\(H(q,p)\)</td><td>\(L(q,\dot q)\)</td></tr>
+<tr><td>Needs</td><td>canonical momenta</td><td>velocities — <span class="key">what sensors actually give you</span></td></tr>
+<tr><td>Machinery</td><td>\(\dot x=J\nabla H\), cheap</td><td>Euler–Lagrange, needs \((\partial^2L/\partial\dot q^2)^{-1}\) — <span class="warn">a Hessian inverse per step</span></td></tr>
+<tr><td>Conservation</td><td>exact by construction</td><td>emerges via the learned \(L\)</td></tr>
+<tr><td>Fails when</td><td>the Legendre transform is singular or unknown</td><td>the learned Hessian is ill-conditioned</td></tr>
+</table>
+
+<p>The honest summary: <strong>HNNs have the cleaner guarantee, LNNs have the friendlier inputs.</strong> If you genuinely have canonical coordinates, the HNN is simpler, cheaper, and its conservation is airtight. If your data arrives as camera angles, joint encoders, or raw sensor readings — and it usually does — recovering \(p\) may be messy, unknown, or (for singular Lagrangians) nonexistent, and the LNN sidesteps the problem entirely. The cost is a Hessian inverse inside every forward pass, which is both slow and numerically delicate.</p>
+
+<p>A third option now dominates practice: <strong>learn the coordinate transformation too</strong>. Hamiltonian Generative Networks and related work put an encoder in front, mapping pixels or sensors into a latent space, and impose Hamiltonian structure <em>there</em>. You get the guarantee without needing to know the canonical coordinates in advance.</p>
+
+<h3 id="hmc">The same idea outside physics</h3>
+
+<h4>Hamiltonian Monte Carlo</h4>
+<p>The most widely deployed Hamiltonian algorithm on Earth is not a physics simulator — it's a sampler, and it runs inside Stan, PyMC, and NumPyro. To sample from a distribution \(\pi(q)\), invent a fictitious physical system:</p>
+$$H(q,p)=\underbrace{-\log \pi(q)}_{\text{potential}}+\underbrace{\tfrac{1}{2}p^\top M^{-1}p}_{\text{kinetic}}$$
+<p>Draw a random momentum, simulate with leapfrog, accept via Metropolis. Because the dynamics conserve \(H\), proposals travel <em>far</em> across the distribution while keeping near-1 acceptance rates — instead of the timid diffusive shuffle of random-walk MCMC. Volume preservation is what makes the acceptance ratio tractable at all: the Jacobian is exactly 1. Here there is no physical energy anywhere; the Hamiltonian is pure computational scaffolding.</p>
+
+<h4>Diffusion models and Fokker–Planck</h4>
+<p>Your transcript closes on this, and the connection is real. Add noise and friction to Hamiltonian dynamics and you get Langevin dynamics; the corresponding evolution of the <em>probability density</em> is the Fokker–Planck equation. Diffusion models are trained on exactly this structure — the reverse-time SDE whose density obeys Fokker–Planck. The bridging object is the <strong>score</strong> \(\nabla_x\log p\), which plays the role \(\nabla H\) does above. Where a Hamiltonian flow circulates around level sets of \(H\), a diffusion flow climbs the gradient of log-density. It's a genuinely close cousin: same geometry of "learn a scalar potential, then differentiate it to get dynamics".</p>
+
+<h4>Optimal control</h4>
+<p>Pontryagin's Maximum Principle recasts control problems as Hamiltonian systems, where \(p\) becomes the <em>costate</em> or adjoint variable — the shadow price of state. If you've derived the adjoint method for neural ODEs, you have already done Hamiltonian mechanics: backpropagation through an ODE <em>is</em> the costate equation.</p>
+
+<h3 id="frontier">Open frontiers</h3>
+<ul>
+<li><strong>Dissipation.</strong> Real robots have friction. <em>Port-Hamiltonian</em> networks and the GENERIC formalism split dynamics into a conservative part plus a controlled dissipative part, keeping structure while allowing energy loss. Very active area, immediately relevant to robotics.</li>
+<li><strong>Constrained and singular systems.</strong> Contact, collision, rigid-body constraints — Dirac's theory of constrained Hamiltonian systems is well developed in physics but barely exploited in ML.</li>
+<li><strong>Learning from pixels.</strong> Inferring canonical coordinates from raw observation remains the practical bottleneck for real-world deployment.</li>
+<li><strong>Scaling.</strong> Most demonstrations are 2–20 dimensional. Whether the inductive bias helps or hinders at the scale of a weather model or a large molecular system is genuinely open.</li>
+<li><strong>Symplectic-by-construction networks.</strong> Rather than learning \(H\) and integrating, build layers that are <em>themselves</em> symplectic maps (SympNets), giving exact structure preservation with no integrator error.</li>
+</ul>
+
+<!-- ==================================================================== -->
+<h2 id="ref">Reference</h2>
+
+<h3 id="cheat">Cheat sheet</h3>
+<table>
+<tr><th>Object</th><th>Formula</th><th>Says</th></tr>
+<tr><td>Hamiltonian</td><td>\(H(q,p)=T+V\) (usually)</td><td>total energy in terms of position &amp; momentum</td></tr>
+<tr><td>Conjugate momentum</td><td>\(p=\partial L/\partial\dot q\)</td><td>the right partner variable for \(q\)</td></tr>
+<tr><td>Legendre transform</td><td>\(H=p\dot q-L\)</td><td>re-index from velocity to momentum</td></tr>
+<tr><td>Hamilton's equations</td><td>\(\dot q=H_p,\ \dot p=-H_q\)</td><td>the equations of motion, for free</td></tr>
+<tr><td>Compact form</td><td>\(\dot x=J\nabla H\)</td><td>flow ⟂ to the energy gradient</td></tr>
+<tr><td>Poisson bracket</td><td>\(\dot f=\{f,H\}\)</td><td>how any quantity evolves</td></tr>
+<tr><td>Conservation</td><td>\(dH/dt=\nabla H\cdot J\nabla H=0\)</td><td>from antisymmetry alone</td></tr>
+<tr><td>Liouville</td><td>\(\nabla\cdot\dot x=0\)</td><td>phase-space volume is frozen</td></tr>
+<tr><td>Symplectic Euler</td><td>\(p'=p-hH_q;\ q'=q+hH_p(p')\)</td><td>bounded energy error forever</td></tr>
+<tr><td>HNN</td><td>\((\hat{\dot q},\hat{\dot p})=(H_{\vartheta,p},-H_{\vartheta,q})\)</td><td>conservation built into the architecture</td></tr>
+</table>
+
+<h3 id="glossary">Glossary</h3>
+<table>
+<tr><td><strong>Phase space</strong></td><td>The space of all states, axes = position and momentum. One point = one complete present, and therefore one complete future.</td></tr>
+<tr><td><strong>Canonical coordinates</strong></td><td>A \((q,p)\) pair related by \(p=\partial L/\partial\dot q\). Hamilton's equations only take this form in such coordinates.</td></tr>
+<tr><td><strong>Symplectic</strong></td><td>Preserving the 2-form \(dq\wedge dp\) — in 2D, preserving oriented area in phase space.</td></tr>
+<tr><td><strong>Separatrix</strong></td><td>The trajectory dividing qualitatively different motions (swinging vs spinning).</td></tr>
+<tr><td><strong>Integrable</strong></td><td>Has as many conserved quantities as degrees of freedom; solvable, non-chaotic.</td></tr>
+<tr><td><strong>Shadow Hamiltonian</strong></td><td>The nearby \(\tilde H\) that a symplectic integrator conserves exactly, explaining bounded error.</td></tr>
+<tr><td><strong>Costate / adjoint</strong></td><td>The control-theory name for \(p\); what backprop-through-ODE computes.</td></tr>
+</table>
+
+<h3 id="reading">Reading path</h3>
+<ol>
+<li><strong>Susskind, <em>The Theoretical Minimum: Classical Mechanics</em></strong> — the gentlest serious entry point; lectures are free online.</li>
+<li><strong>Taylor, <em>Classical Mechanics</em>, ch. 7 &amp; 13</strong> — the standard undergraduate treatment, very readable.</li>
+<li><strong>Arnold, <em>Mathematical Methods of Classical Mechanics</em></strong> — the geometric view. Hard, and the book that makes it all click.</li>
+<li><strong>Greydanus, Dzamba &amp; Yosinski, "Hamiltonian Neural Networks" (NeurIPS 2019), arXiv:1906.01563</strong> — short, clear, start here for the ML side.</li>
+<li><strong>Cranmer et al., "Lagrangian Neural Networks" (2020), arXiv:2003.04630</strong> — the counterpart, including the relativistic example.</li>
+<li><strong>Betancourt, "A Conceptual Introduction to Hamiltonian Monte Carlo" (arXiv:1701.02434)</strong> — the best explanation of why HMC works.</li>
+<li><strong>Hairer, Lubich &amp; Wanner, <em>Geometric Numerical Integration</em></strong> — the definitive reference on symplectic integrators and shadow Hamiltonians.</li>
+</ol>
+
+<hr>
+<p style="color:var(--dim);font-size:13.5px">All figures generated from scratch for this document. The HNN and baseline were implemented in pure NumPy with analytically derived second-derivative gradients — see the accompanying <code>hamiltonian_toolkit.py</code>, which reproduces every result here.</p>
+
+</main>
+</div>
+
+<script>
+(function(){
+  const cP=document.getElementById('cPhase'), cE=document.getElementById('cEnergy');
+  const xP=cP.getContext('2d'), xE=cE.getContext('2d');
+  const dtS=document.getElementById('dt'), dtv=document.getElementById('dtv');
+  const ro=document.getElementById('ro'), sysS=document.getElementById('sys');
+  const M={euler:{on:true,c:'#f778ba',n:'Euler'},symp:{on:true,c:'#3fb950',n:'Symplectic'},
+           rk4:{on:true,c:'#d29922',n:'RK4'}};
+  const B={euler:'bEuler',symp:'bSymp',rk4:'bRk4'};
+  let st={}, hist={}, t=0, dt=0.2, sys='sho';
+
+  const dV=q=> sys==='sho'? q : Math.sin(q)*3;          // dV/dq
+  const V =q=> sys==='sho'? 0.5*q*q : 3*(1-Math.cos(q));
+  const E =s=> 0.5*s.p*s.p + V(s.q);
+
+  function reset(){
+    t=0; st={}; hist={};
+    for(const k in M){ st[k]={q:1.6,p:0}; hist[k]=[]; }
+  }
+  reset();
+
+  function step(k){
+    let s=st[k];
+    if(k==='euler'){ const q=s.q,p=s.p; s.q=q+dt*p; s.p=p-dt*dV(q); }
+    else if(k==='symp'){ s.p=s.p-dt*dV(s.q); s.q=s.q+dt*s.p; }
+    else{
+      const f=(q,p)=>[p,-dV(q)];
+      const [a1,b1]=f(s.q,s.p);
+      const [a2,b2]=f(s.q+dt/2*a1, s.p+dt/2*b1);
+      const [a3,b3]=f(s.q+dt/2*a2, s.p+dt/2*b2);
+      const [a4,b4]=f(s.q+dt*a3,   s.p+dt*b3);
+      s.q+=dt/6*(a1+2*a2+2*a3+a4); s.p+=dt/6*(b1+2*b2+2*b3+b4);
+    }
+    if(!isFinite(s.q)||Math.abs(s.q)>1e4){ s.q=1e4*Math.sign(s.q||1); s.p=0; }
+    hist[k].push([s.q,s.p,E(s)]);
+    if(hist[k].length>900) hist[k].shift();
+  }
+
+  function draw(){
+    const W=cP.width,H=cP.height, sc=48, cx=W/2, cy=H/2;
+    xP.fillStyle='#f4f6f8'; xP.fillRect(0,0,W,H);
+    xP.strokeStyle='#d0d7de'; xP.lineWidth=1;
+    xP.beginPath(); xP.moveTo(0,cy); xP.lineTo(W,cy);
+    xP.moveTo(cx,0); xP.lineTo(cx,H); xP.stroke();
+    for(const k in M){
+      if(!M[k].on) continue;
+      xP.strokeStyle=M[k].c; xP.lineWidth=1.5; xP.beginPath();
+      hist[k].forEach((v,i)=>{ const X=cx+v[0]*sc, Y=cy-v[1]*sc;
+        i?xP.lineTo(X,Y):xP.moveTo(X,Y); });
+      xP.stroke();
+      const l=hist[k][hist[k].length-1];
+      if(l){ xP.fillStyle=M[k].c; xP.beginPath();
+             xP.arc(cx+l[0]*sc, cy-l[1]*sc, 4,0,7); xP.fill(); }
+    }
+    // energy panel
+    const W2=cE.width,H2=cE.height;
+    xE.fillStyle='#f4f6f8'; xE.fillRect(0,0,W2,H2);
+    let mx=1e-9;
+    for(const k in M) if(M[k].on) hist[k].forEach(v=>{ if(isFinite(v[2])) mx=Math.max(mx,v[2]); });
+    mx=Math.max(mx, E({q:1.6,p:0})*1.6);
+    const E0=E({q:1.6,p:0});
+    xE.strokeStyle='#2b3543'; xE.setLineDash([4,4]); xE.beginPath();
+    xE.moveTo(0,H2-E0/mx*H2*0.9); xE.lineTo(W2,H2-E0/mx*H2*0.9); xE.stroke();
+    xE.setLineDash([]);
+    for(const k in M){
+      if(!M[k].on) continue;
+      xE.strokeStyle=M[k].c; xE.lineWidth=1.6; xE.beginPath();
+      hist[k].forEach((v,i)=>{ const X=i/900*W2, Y=H2-Math.min(v[2],mx)/mx*H2*0.9;
+        i?xE.lineTo(X,Y):xE.moveTo(X,Y); });
+      xE.stroke();
+    }
+    let s='';
+    for(const k in M){ if(!M[k].on) continue;
+      const l=hist[k][hist[k].length-1];
+      const d=l? (l[2]-E0)/E0*100 : 0;
+      s+=`<span style="color:${M[k].c}">${M[k].n}: ${isFinite(d)?d.toFixed(1):'∞'}% energy error</span>&nbsp;&nbsp; `; }
+    ro.innerHTML=s;
+  }
+
+  function loop(){ for(let i=0;i<2;i++){ for(const k in M) if(M[k].on) step(k); t+=dt; }
+                   draw(); requestAnimationFrame(loop); }
+
+  for(const k in M){ document.getElementById(B[k]).onclick=e=>{
+      M[k].on=!M[k].on; e.target.classList.toggle('on',M[k].on); }; }
+  dtS.oninput=()=>{ dt=+dtS.value/100; dtv.textContent=dt.toFixed(2); reset(); };
+  sysS.onchange=()=>{ sys=sysS.value; reset(); };
+  document.getElementById('reset').onclick=reset;
+  loop();
+})();
+</script>
+</body>
+</html>
