@@ -246,34 +246,32 @@ You will learn:
 
 Supervised learning example:
 
-\[
-y = 2x + 1
-\]
+$$y = 2x + 1$$
 
 ### Module 6: First PINN
 
 Solve:
 
-\[
+$$
 \frac{du}{dt} + u = 0,
 \qquad u(0)=1
-\]
+$$
 
 ### Module 7: Nonlinear ODE PINN
 
 Solve logistic growth:
 
-\[
+$$
 \frac{dN}{dt} = rN\left(1-\frac{N}{K}\right)
-\]
+$$
 
 ### Module 8: Second-Order ODE PINN
 
 Solve:
 
-\[
+$$
 m\frac{d^2x}{dt^2}+c\frac{dx}{dt}+kx=0
-\]
+$$
 
 ### Module 9: Coupled ODE Systems
 
@@ -726,15 +724,11 @@ print(first_derivative)
 
 Because:
 
-\[
-y=x^2
-\]
+$$y = x^2$$
 
 we expect:
 
-\[
-\frac{dy}{dx}=2x
-\]
+$$\frac{dy}{dx} = 2x$$
 
 ## Second derivative
 
@@ -750,10 +744,9 @@ print(second_derivative)
 ```
 
 Because:
-
-\[
+$$
 \frac{d^2y}{dx^2}=2
-\]
+$$
 
 this should return values close to 2.
 
@@ -765,23 +758,23 @@ A Physics-Informed Neural Network approximates the unknown solution of a differe
 
 Suppose the exact function is:
 
-\[
+$$
 u(t)
-\]
+$$
 
 The network approximation is:
 
-\[
+$$
 u_\theta(t)
-\]
+$$
 
-where \(\theta\) represents all network weights and biases.
+where $\theta$ represents all network weights and biases.
 
 ## General loss function
 
 A PINN often uses:
 
-\[
+$$
 \mathcal{L}
 =
 \lambda_r\mathcal{L}_{physics}
@@ -791,14 +784,14 @@ A PINN often uses:
 \lambda_{BC}\mathcal{L}_{BC}
 +
 \lambda_d\mathcal{L}_{data}
-\]
+$$
 
 where:
 
-- \(\mathcal{L}_{physics}\) measures equation violation;
-- \(\mathcal{L}_{IC}\) measures initial-condition violation;
-- \(\mathcal{L}_{BC}\) measures boundary-condition violation;
-- \(\mathcal{L}_{data}\) measures mismatch with observations.
+- $\mathcal{L}_{physics}$ measures equation violation;
+- $\mathcal{L}_{IC}$ measures initial-condition violation;
+- $\mathcal{L}_{BC}$ measures boundary-condition violation;
+- $\mathcal{L}_{data}$ measures mismatch with observations.
 
 ## Collocation points
 
@@ -808,15 +801,15 @@ They do not require known solution values.
 
 For an ODE, these may be time points:
 
-\[
+$$
 t_1,t_2,\ldots,t_N
-\]
+$$
 
 For a PDE, these may be space-time points:
 
-\[
+$$
 (x_i,t_i)
-\]
+$$
 
 ---
 
@@ -824,16 +817,16 @@ For a PDE, these may be space-time points:
 
 We solve:
 
-\[
+$$
 \frac{du}{dt}+u=0,
 \qquad u(0)=1
-\]
+$$
 
 The exact solution is:
 
-\[
+$$
 u(t)=e^{-t}
-\]
+$$
 
 ## Step 1: Imports
 
@@ -1056,45 +1049,45 @@ print("Maximum absolute error:", max_absolute_error)
 
 The same equation can describe drug elimination.
 
-\[
+$$
 \frac{dC}{dt}+kC=0,
 \qquad C(0)=C_0
-\]
+$$
 
 where:
 
-- \(C(t)\) is drug concentration;
-- \(k\) is the elimination-rate constant;
-- \(C_0\) is the initial concentration.
+- $C(t)$ is drug concentration;
+- $k$ is the elimination-rate constant;
+- $C_0$ is the initial concentration.
 
 The exact solution is:
 
-\[
+$$
 C(t)=C_0e^{-kt}
-\]
+$$
 
 For example:
 
-\[
+$$
 C_0=10,
 \qquad k=0.5
-\]
+$$
 
 Then:
 
-\[
+$$
 C(t)=10e^{-0.5t}
-\]
+$$
 
 ## Biological PINN residual
 
-\[
+$$
 r_\theta(t)
 =
 \frac{dC_\theta}{dt}
 +
 kC_\theta(t)
-\]
+$$
 
 ## Modified residual function
 
@@ -1232,15 +1225,15 @@ The PINN integration logic remains the same.
 
 ## ODE 1: Exponential decay
 
-\[
+$$
 \frac{du}{dt}+u=0
-\]
+$$
 
 ## ODE 2: Logistic growth
 
-\[
+$$
 \frac{dN}{dt}=rN\left(1-\frac{N}{K}\right)
-\]
+$$
 
 Topics:
 
@@ -1252,77 +1245,77 @@ Topics:
 
 ## ODE 3: Harmonic oscillator
 
-\[
+$$
 \frac{d^2x}{dt^2}+\omega^2x=0
-\]
+$$
 
 ## ODE 4: Damped oscillator
 
-\[
+$$
 m\frac{d^2x}{dt^2}+c\frac{dx}{dt}+kx=0
-\]
+$$
 
 ## ODE 5: Lotka-Volterra
 
-\[
+$$
 \frac{dx}{dt}=\alpha x-\beta xy
-\]
+$$
 
-\[
+$$
 \frac{dy}{dt}=\delta xy-\gamma y
-\]
+$$
 
 ## ODE 6: SIR model
 
-\[
+$$
 \frac{dS}{dt}=-\beta\frac{SI}{N}
-\]
+$$
 
-\[
+$$
 \frac{dI}{dt}=\beta\frac{SI}{N}-\gamma I
-\]
+$$
 
-\[
+$$
 \frac{dR}{dt}=\gamma I
-\]
+$$
 
 ## ODE 7: Two-compartment pharmacokinetics
 
-\[
+$$
 \frac{dC_1}{dt}
 =
 -k_{10}C_1-k_{12}C_1+k_{21}C_2
-\]
+$$
 
-\[
+$$
 \frac{dC_2}{dt}
 =
 k_{12}C_1-k_{21}C_2
-\]
+$$
 
 ## ODE 8: Michaelis-Menten kinetics
 
-\[
+$$
 \frac{dS}{dt}
 =
 -\frac{V_{max}S}{K_m+S}
-\]
+$$
 
 ## ODE 9: Gene regulation
 
-\[
+$$
 \frac{dm}{dt}
 =
 \frac{\alpha}{1+(p/K)^n}
 -
 \gamma_m m
-\]
+$$
 
-\[
+$$
 \frac{dp}{dt}
 =
 \beta m-\gamma_p p
-\]
+$$
 
 ## ODE 10: Stiff reaction system
 
@@ -1338,54 +1331,54 @@ Example:
 
 ## PDE 1: Poisson equation
 
-\[
+$$
 \frac{d^2u}{dx^2}=f(x)
-\]
+$$
 
 ## PDE 2: Heat equation
 
-\[
+$$
 \frac{\partial u}{\partial t}
 =
 \alpha\frac{\partial^2u}{\partial x^2}
-\]
+$$
 
 ## PDE 3: Wave equation
 
-\[
+$$
 \frac{\partial^2u}{\partial t^2}
 =
 c^2\frac{\partial^2u}{\partial x^2}
-\]
+$$
 
 ## PDE 4: Burgers equation
 
-\[
+$$
 u_t+uu_x-\nu u_{xx}=0
-\]
+$$
 
 ## PDE 5: Reaction-diffusion
 
-\[
+$$
 \frac{\partial C}{\partial t}
 =
 D\frac{\partial^2C}{\partial x^2}
 -kC
-\]
+$$
 
 ## PDE 6: Fisher-KPP equation
 
-\[
+$$
 \frac{\partial u}{\partial t}
 =
 D\nabla^2u
 +
 ru(1-u)
-\]
+$$
 
 ## PDE 7: Coupled tissue model
 
-\[
+$$
 \frac{\partial n}{\partial t}
 =
 D_n\nabla^2n
@@ -1393,13 +1386,13 @@ D_n\nabla^2n
 rn\left(1-\frac{n}{K}\right)
 -
 \gamma Cn
-\]
+$$
 
-\[
+$$
 \frac{\partial C}{\partial t}
 =
 D_C\nabla^2C-k_CC
-\]
+$$
 
 ## PDE 8: Navier-Stokes
 
@@ -1415,11 +1408,11 @@ In an inverse problem, one or more parameters are unknown and learned from data.
 
 ## Example: unknown decay rate
 
-\[
+$$
 \frac{du}{dt}=-ku
-\]
+$$
 
-The parameter \(k\) is unknown.
+The parameter $k$ is unknown.
 
 ## Trainable parameter
 
@@ -1510,8 +1503,8 @@ Estimate:
 
 Estimate:
 
-- \(V_{max}\)
-- \(K_m\)
+- $V_{max}$
+- $K_m$
 
 ## Project 4: Gene regulation
 
@@ -1582,9 +1575,9 @@ We will study:
 
 Inputs may be mapped to:
 
-\[
+$$
 [-1,1]
-\]
+$$
 
 This often improves optimization.
 
@@ -1598,15 +1591,15 @@ Instead of penalizing an initial condition, it can be built into the network out
 
 For example:
 
-\[
+$$
 u_\theta(t)=1+tN_\theta(t)
-\]
+$$
 
 This automatically satisfies:
 
-\[
+$$
 u_\theta(0)=1
-\]
+$$
 
 ## Fourier features
 
@@ -1638,11 +1631,11 @@ Outputs:
 
 Physics constraint:
 
-\[
+$$
 \frac{dC}{dt}+kC=0
-\]
+$$
 
-The value of \(k\) depends on the molecular representation.
+The value of $k$ depends on the molecular representation.
 
 ## Integrated Project 2: Protein-conditioned enzyme kinetics
 
