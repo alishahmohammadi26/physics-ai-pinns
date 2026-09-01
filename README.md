@@ -136,3 +136,5 @@ print("Matplotlib:", matplotlib.__version__)
 | **Track 4** | Data Governance, FAIR Data & Knowledge Graphs |
 | **Track 5** | Scientific ML & Regulatory AI |
 | **Track 6** | Presentations & Learning Resources |
+
+<!-- maintained-note: keep this repo tidy -->
