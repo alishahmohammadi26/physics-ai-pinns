@@ -246,7 +246,11 @@ You will learn:
 
 Supervised learning example:
 
-$$y = 2x + 1$$
+
+$$
+y = 2x + 1
+$$
+
 
 ### Module 6: First PINN
 
@@ -257,6 +261,7 @@ $$
 \qquad u(0)=1
 $$
 
+
 ### Module 7: Nonlinear ODE PINN
 
 Solve logistic growth:
@@ -265,6 +270,7 @@ $$
 \frac{dN}{dt} = rN\left(1-\frac{N}{K}\right)
 $$
 
+
 ### Module 8: Second-Order ODE PINN
 
 Solve:
@@ -272,6 +278,7 @@ Solve:
 $$
 m\frac{d^2x}{dt^2}+c\frac{dx}{dt}+kx=0
 $$
+
 
 ### Module 9: Coupled ODE Systems
 
@@ -724,11 +731,19 @@ print(first_derivative)
 
 Because:
 
-$$y = x^2$$
+
+$$
+y = x^2
+$$
+
 
 we expect:
 
-$$\frac{dy}{dx} = 2x$$
+
+$$
+\frac{dy}{dx} = 2x
+$$
+
 
 ## Second derivative
 
@@ -744,9 +759,11 @@ print(second_derivative)
 ```
 
 Because:
+
 $$
 \frac{d^2y}{dx^2}=2
 $$
+
 
 this should return values close to 2.
 
@@ -762,11 +779,13 @@ $$
 u(t)
 $$
 
+
 The network approximation is:
 
 $$
 u_\theta(t)
 $$
+
 
 where $\theta$ represents all network weights and biases.
 
@@ -785,6 +804,7 @@ $$
 +
 \lambda_d\mathcal{L}_{data}
 $$
+
 
 where:
 
@@ -805,11 +825,13 @@ $$
 t_1,t_2,\ldots,t_N
 $$
 
+
 For a PDE, these may be space-time points:
 
 $$
 (x_i,t_i)
 $$
+
 
 ---
 
@@ -822,11 +844,13 @@ $$
 \qquad u(0)=1
 $$
 
+
 The exact solution is:
 
 $$
 u(t)=e^{-t}
 $$
+
 
 ## Step 1: Imports
 
@@ -1054,6 +1078,7 @@ $$
 \qquad C(0)=C_0
 $$
 
+
 where:
 
 - $C(t)$ is drug concentration;
@@ -1066,6 +1091,7 @@ $$
 C(t)=C_0e^{-kt}
 $$
 
+
 For example:
 
 $$
@@ -1073,11 +1099,13 @@ C_0=10,
 \qquad k=0.5
 $$
 
+
 Then:
 
 $$
 C(t)=10e^{-0.5t}
 $$
+
 
 ## Biological PINN residual
 
@@ -1088,6 +1116,7 @@ r_\theta(t)
 +
 kC_\theta(t)
 $$
+
 
 ## Modified residual function
 
@@ -1123,63 +1152,1083 @@ initial_loss = torch.mean(
 
 # 11. PhysicsNeMo Learning Track
 
-PhysicsNeMo will be introduced only after the manual PyTorch implementation is understood.
+PhysicsNeMo is introduced after the manual PyTorch PINN implementation so that the framework does not hide the mathematics. The examples below use the current PhysicsNeMo 2.x pattern:
 
-This prevents the framework from hiding the important mathematical steps.
+- define equations inline with SymPy;
+- inherit from `physicsnemo.sym.eq.pde.PDE`;
+- use a normal `torch.nn.Module` as the neural network;
+- use `PhysicsInformer` to compute equation residuals;
+- use an explicit PyTorch optimization loop;
+- force execution on CPU.
+
+> **CPU note:** All eight lessons explicitly use `device = torch.device("cpu")`. They are intentionally small educational examples. Increase the number of points or epochs only after the basic version works.
 
 ## PhysicsNeMo topics
 
 You will learn:
 
-- symbolic variables
-- symbolic differential equations
-- PDE classes
-- coordinate systems
-- field variables
-- residual generation
-- geometry objects
-- interior constraints
-- boundary constraints
-- initial constraints
-- data constraints
-- validation
-- inference
+- symbolic variables;
+- symbolic differential equations;
+- custom `PDE` classes;
+- coordinate systems;
+- field variables;
+- residual generation;
+- interior, boundary, initial, and data constraints;
+- validation;
+- inference.
 
-## PhysicsNeMo lesson sequence
+## Install and verify PhysicsNeMo
 
-### Lesson 1: Symbolic equation definitions
+```bash
+python -m pip install --upgrade pip
+pip install torch numpy matplotlib sympy
+pip install "nvidia-physicsnemo[sym]"
+```
 
-You will express equations using symbolic mathematics.
+```python
+import torch
+import physicsnemo
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
 
-### Lesson 2: First-order ODE
+print("PyTorch version:", torch.__version__)
+print("PhysicsNeMo version:", physicsnemo.__version__)
+print("CUDA available:", torch.cuda.is_available())
+print("Course device: cpu")
+```
+
+---
+
+## Lesson 1: Symbolic equation definitions
+
+You will express equations using symbolic mathematics and inspect the inputs required by `PhysicsInformer`.
+
+### Equation
+
+$$
+\frac{du}{dt}+k u=0
+$$
+
+
+### Complete code
+
+```python
+from sympy import Function, Symbol
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+class ExponentialDecayEquation(PDE):
+    """Symbolic equation: du/dt + k*u = 0."""
+
+    def __init__(self, k: float = 1.0) -> None:
+        self.dim = 1
+
+        t = Symbol("t")
+        u = Function("u")(t)
+
+        self.equations = {
+            "decay_residual": u.diff(t) + k * u,
+        }
+
+
+equation = ExponentialDecayEquation(k=0.5)
+
+print("Symbolic equation:")
+equation.pprint()
+
+informer = PhysicsInformer(
+    required_outputs=["decay_residual"],
+    equations=equation,
+    grad_method="autodiff",
+    device="cpu",
+)
+
+print("\nPhysicsInformer required inputs:")
+print(informer.required_inputs)
+```
+
+### What each part means
+
+- `Symbol("t")` defines the independent coordinate.
+- `Function("u")(t)` defines the unknown field.
+- `u.diff(t)` represents the derivative with respect to time.
+- `self.equations` names the residual that PhysicsNeMo will calculate.
+- `required_outputs` chooses which residuals to return.
+
+---
+
+## Lesson 2: First-order ODE
 
 Rebuild exponential decay using PhysicsNeMo.
 
-### Lesson 3: Nonlinear ODE
+### Problem
+
+$$
+\frac{du}{dt}+u=0, \qquad u(0)=1
+$$
+
+
+The exact solution is:
+
+$$
+u(t)=e^{-t}
+$$
+
+
+### Complete CPU code
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+
+
+class ExponentialDecay(PDE):
+    def __init__(self) -> None:
+        self.dim = 1
+        t = Symbol("t")
+        u = Function("u")(t)
+        self.equations = {
+            "ode": u.diff(t) + u,
+        }
+
+
+class MLP(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(1, 32),
+            nn.Tanh(),
+            nn.Linear(32, 32),
+            nn.Tanh(),
+            nn.Linear(32, 32),
+            nn.Tanh(),
+            nn.Linear(32, 1),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        return self.net(coordinates)
+
+
+equation = ExponentialDecay()
+informer = PhysicsInformer(
+    required_outputs=["ode"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = MLP().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+# Interior collocation points.
+t = torch.linspace(0.0, 5.0, 128, device=device).reshape(-1, 1)
+t.requires_grad_(True)
+
+# Initial-condition point.
+t0 = torch.zeros((1, 1), device=device)
+u0 = torch.ones((1, 1), device=device)
+
+loss_history = []
+
+for epoch in range(4001):
+    optimizer.zero_grad()
+
+    u = model(t)
+    residuals = informer.forward({
+        "coordinates": t,
+        "u": u,
+    })
+
+    physics_loss = torch.mean(residuals["ode"] ** 2)
+    initial_loss = torch.mean((model(t0) - u0) ** 2)
+    loss = physics_loss + 10.0 * initial_loss
+
+    loss.backward()
+    optimizer.step()
+
+    loss_history.append(loss.item())
+
+    if epoch % 500 == 0:
+        print(
+            f"epoch={epoch:4d}  total={loss.item():.3e}  "
+            f"physics={physics_loss.item():.3e}  "
+            f"initial={initial_loss.item():.3e}"
+        )
+
+# Validation and inference.
+t_test = torch.linspace(0.0, 5.0, 300, device=device).reshape(-1, 1)
+with torch.no_grad():
+    u_prediction = model(t_test)
+    u_exact = torch.exp(-t_test)
+
+mae = torch.mean(torch.abs(u_prediction - u_exact)).item()
+print("Mean absolute error:", mae)
+
+plt.figure(figsize=(8, 5))
+plt.plot(t_test.numpy(), u_exact.numpy(), label="Exact")
+plt.plot(t_test.numpy(), u_prediction.numpy(), "--", label="PhysicsNeMo PINN")
+plt.xlabel("t")
+plt.ylabel("u(t)")
+plt.title("PhysicsNeMo: Exponential Decay")
+plt.grid(True)
+plt.legend()
+plt.show()
+
+plt.figure(figsize=(8, 5))
+plt.semilogy(loss_history)
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.title("Training History")
+plt.grid(True)
+plt.show()
+```
+
+---
+
+## Lesson 3: Nonlinear ODE
 
 Rebuild logistic growth.
 
-### Lesson 4: Second-order ODE
+### Problem
+
+$$
+\frac{dN}{dt}=rN\left(1-\frac{N}{K}\right), \qquad N(0)=N_0
+$$
+
+
+### Complete CPU code
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+
+R = 0.8
+K = 10.0
+N0 = 1.0
+
+
+class LogisticEquation(PDE):
+    def __init__(self, r: float, carrying_capacity: float) -> None:
+        self.dim = 1
+        t = Symbol("t")
+        population = Function("population")(t)
+        self.equations = {
+            "logistic": (
+                population.diff(t)
+                - r * population * (1.0 - population / carrying_capacity)
+            ),
+        }
+
+
+class PopulationNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(1, 48),
+            nn.Tanh(),
+            nn.Linear(48, 48),
+            nn.Tanh(),
+            nn.Linear(48, 48),
+            nn.Tanh(),
+            nn.Linear(48, 1),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        # Softplus keeps population positive.
+        return torch.nn.functional.softplus(self.net(coordinates))
+
+
+equation = LogisticEquation(r=R, carrying_capacity=K)
+informer = PhysicsInformer(
+    required_outputs=["logistic"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = PopulationNetwork().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+t = torch.linspace(0.0, 10.0, 160, device=device).reshape(-1, 1)
+t.requires_grad_(True)
+t0 = torch.zeros((1, 1), device=device)
+
+for epoch in range(5001):
+    optimizer.zero_grad()
+
+    population = model(t)
+    residual = informer.forward({
+        "coordinates": t,
+        "population": population,
+    })["logistic"]
+
+    physics_loss = torch.mean(residual**2)
+    initial_loss = torch.mean((model(t0) - N0) ** 2)
+    loss = physics_loss + 20.0 * initial_loss
+
+    loss.backward()
+    optimizer.step()
+
+    if epoch % 500 == 0:
+        print(f"epoch={epoch:4d} loss={loss.item():.3e}")
+
+# Exact logistic solution.
+t_test = torch.linspace(0.0, 10.0, 300).reshape(-1, 1)
+with torch.no_grad():
+    prediction = model(t_test)
+    exact = K / (1.0 + ((K - N0) / N0) * torch.exp(-R * t_test))
+
+print("MAE:", torch.mean(torch.abs(prediction - exact)).item())
+
+plt.figure(figsize=(8, 5))
+plt.plot(t_test.numpy(), exact.numpy(), label="Exact")
+plt.plot(t_test.numpy(), prediction.numpy(), "--", label="PhysicsNeMo PINN")
+plt.axhline(K, linestyle=":", label="Carrying capacity")
+plt.xlabel("Time")
+plt.ylabel("Population")
+plt.title("PhysicsNeMo: Logistic Growth")
+plt.grid(True)
+plt.legend()
+plt.show()
+```
+
+---
+
+## Lesson 4: Second-order ODE
 
 Build the mass-spring-damper problem.
 
-### Lesson 5: Coupled ODE system
+### Problem
 
-Build pharmacokinetic or epidemiological systems.
+$$
+m\frac{d^2x}{dt^2}+c\frac{dx}{dt}+kx=0
+$$
 
-### Lesson 6: First PDE
+
+with:
+
+$$
+x(0)=1, \qquad \frac{dx}{dt}(0)=0
+$$
+
+
+### Complete CPU code
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+
+MASS = 1.0
+DAMPING = 0.4
+STIFFNESS = 4.0
+
+
+class MassSpringDamper(PDE):
+    def __init__(self, mass: float, damping: float, stiffness: float) -> None:
+        self.dim = 1
+        t = Symbol("t")
+        displacement = Function("displacement")(t)
+        self.equations = {
+            "oscillator": (
+                mass * displacement.diff(t, 2)
+                + damping * displacement.diff(t)
+                + stiffness * displacement
+            ),
+        }
+
+
+class OscillatorNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(1, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        return self.net(coordinates)
+
+
+equation = MassSpringDamper(MASS, DAMPING, STIFFNESS)
+informer = PhysicsInformer(
+    required_outputs=["oscillator"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = OscillatorNetwork().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=8e-4)
+
+t = torch.linspace(0.0, 10.0, 200, device=device).reshape(-1, 1)
+t.requires_grad_(True)
+
+t0 = torch.zeros((1, 1), device=device, requires_grad=True)
+
+for epoch in range(6001):
+    optimizer.zero_grad()
+
+    displacement = model(t)
+    oscillator_residual = informer.forward({
+        "coordinates": t,
+        "displacement": displacement,
+    })["oscillator"]
+
+    x_initial = model(t0)
+    velocity_initial = torch.autograd.grad(
+        x_initial,
+        t0,
+        grad_outputs=torch.ones_like(x_initial),
+        create_graph=True,
+    )[0]
+
+    physics_loss = torch.mean(oscillator_residual**2)
+    position_loss = torch.mean((x_initial - 1.0) ** 2)
+    velocity_loss = torch.mean(velocity_initial**2)
+    loss = physics_loss + 20.0 * position_loss + 20.0 * velocity_loss
+
+    loss.backward()
+    optimizer.step()
+
+    if epoch % 600 == 0:
+        print(f"epoch={epoch:4d} loss={loss.item():.3e}")
+
+# Analytical solution for the underdamped case.
+t_test = torch.linspace(0.0, 10.0, 400).reshape(-1, 1)
+gamma = DAMPING / (2.0 * MASS)
+omega_d = (STIFFNESS / MASS - gamma**2) ** 0.5
+with torch.no_grad():
+    prediction = model(t_test)
+    exact = torch.exp(-gamma * t_test) * (
+        torch.cos(omega_d * t_test)
+        + gamma / omega_d * torch.sin(omega_d * t_test)
+    )
+
+print("MAE:", torch.mean(torch.abs(prediction - exact)).item())
+
+plt.figure(figsize=(8, 5))
+plt.plot(t_test.numpy(), exact.numpy(), label="Exact")
+plt.plot(t_test.numpy(), prediction.numpy(), "--", label="PhysicsNeMo PINN")
+plt.xlabel("Time")
+plt.ylabel("Displacement")
+plt.title("PhysicsNeMo: Mass-Spring-Damper")
+plt.grid(True)
+plt.legend()
+plt.show()
+```
+
+---
+
+## Lesson 5: Coupled ODE system
+
+Build a two-compartment pharmacokinetic system.
+
+### Problem
+
+$$
+\frac{dC_1}{dt}=-(k_{10}+k_{12})C_1+k_{21}C_2
+$$
+
+
+$$
+\frac{dC_2}{dt}=k_{12}C_1-k_{21}C_2
+$$
+
+
+### Complete CPU code
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+
+K10 = 0.30
+K12 = 0.50
+K21 = 0.20
+INITIAL_C1 = 10.0
+INITIAL_C2 = 0.0
+
+
+class TwoCompartmentPK(PDE):
+    def __init__(self, k10: float, k12: float, k21: float) -> None:
+        self.dim = 1
+        t = Symbol("t")
+        c1 = Function("c1")(t)
+        c2 = Function("c2")(t)
+
+        self.equations = {
+            "central": c1.diff(t) + (k10 + k12) * c1 - k21 * c2,
+            "peripheral": c2.diff(t) - k12 * c1 + k21 * c2,
+        }
+
+
+class PKNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(1, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 2),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        # Concentrations should be nonnegative.
+        return torch.nn.functional.softplus(self.net(coordinates))
+
+
+equation = TwoCompartmentPK(K10, K12, K21)
+informer = PhysicsInformer(
+    required_outputs=["central", "peripheral"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = PKNetwork().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=8e-4)
+
+t = torch.linspace(0.0, 20.0, 240, device=device).reshape(-1, 1)
+t.requires_grad_(True)
+t0 = torch.zeros((1, 1), device=device)
+initial_state = torch.tensor([[INITIAL_C1, INITIAL_C2]], device=device)
+
+for epoch in range(7001):
+    optimizer.zero_grad()
+
+    output = model(t)
+    c1 = output[:, 0:1]
+    c2 = output[:, 1:2]
+
+    residuals = informer.forward({
+        "coordinates": t,
+        "c1": c1,
+        "c2": c2,
+    })
+
+    physics_loss = (
+        torch.mean(residuals["central"] ** 2)
+        + torch.mean(residuals["peripheral"] ** 2)
+    )
+    initial_loss = torch.mean((model(t0) - initial_state) ** 2)
+    loss = physics_loss + 30.0 * initial_loss
+
+    loss.backward()
+    optimizer.step()
+
+    if epoch % 700 == 0:
+        print(f"epoch={epoch:4d} loss={loss.item():.3e}")
+
+# Inference.
+t_test = torch.linspace(0.0, 20.0, 400).reshape(-1, 1)
+with torch.no_grad():
+    prediction = model(t_test)
+
+plt.figure(figsize=(8, 5))
+plt.plot(t_test.numpy(), prediction[:, 0].numpy(), label="Central compartment")
+plt.plot(t_test.numpy(), prediction[:, 1].numpy(), label="Peripheral compartment")
+plt.xlabel("Time")
+plt.ylabel("Concentration")
+plt.title("PhysicsNeMo: Two-Compartment Pharmacokinetics")
+plt.grid(True)
+plt.legend()
+plt.show()
+```
+
+> For strict quantitative validation, compare this prediction with `scipy.integrate.solve_ivp` using the same rate constants and initial conditions.
+
+---
+
+## Lesson 6: First PDE
 
 Solve the one-dimensional heat equation.
 
-### Lesson 7: Nonlinear PDE
+### Problem
+
+$$
+\frac{\partial u}{\partial t}=\alpha\frac{\partial^2u}{\partial x^2}
+$$
+
+
+with:
+
+$$
+u(x,0)=\sin(\pi x), \qquad u(0,t)=u(1,t)=0
+$$
+
+
+The exact solution is:
+
+$$
+u(x,t)=e^{-\alpha\pi^2t}\sin(\pi x)
+$$
+
+
+### Complete CPU code
+
+```python
+import math
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+ALPHA = 0.10
+
+
+class HeatEquation1D(PDE):
+    def __init__(self, alpha: float) -> None:
+        self.dim = 2
+        x = Symbol("x")
+        t = Symbol("t")
+        u = Function("u")(x, t)
+        self.equations = {
+            "heat": u.diff(t) - alpha * u.diff(x, 2),
+        }
+
+
+class HeatNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(2, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 64),
+            nn.Tanh(),
+            nn.Linear(64, 1),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        return self.net(coordinates)
+
+
+def sample_interior(count: int) -> torch.Tensor:
+    x = torch.rand((count, 1), device=device)
+    t = torch.rand((count, 1), device=device)
+    coordinates = torch.cat([x, t], dim=1)
+    coordinates.requires_grad_(True)
+    return coordinates
+
+
+equation = HeatEquation1D(ALPHA)
+informer = PhysicsInformer(
+    required_outputs=["heat"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = HeatNetwork().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
+
+for epoch in range(6001):
+    optimizer.zero_grad()
+
+    # Interior constraint.
+    interior = sample_interior(512)
+    u_interior = model(interior)
+    heat_residual = informer.forward({
+        "coordinates": interior,
+        "u": u_interior,
+    })["heat"]
+    physics_loss = torch.mean(heat_residual**2)
+
+    # Initial constraint at t = 0.
+    x_initial = torch.rand((128, 1), device=device)
+    initial_coordinates = torch.cat(
+        [x_initial, torch.zeros_like(x_initial)], dim=1
+    )
+    initial_target = torch.sin(math.pi * x_initial)
+    initial_loss = torch.mean((model(initial_coordinates) - initial_target) ** 2)
+
+    # Boundary constraints at x = 0 and x = 1.
+    t_boundary = torch.rand((128, 1), device=device)
+    left = torch.cat([torch.zeros_like(t_boundary), t_boundary], dim=1)
+    right = torch.cat([torch.ones_like(t_boundary), t_boundary], dim=1)
+    boundary_loss = torch.mean(model(left) ** 2) + torch.mean(model(right) ** 2)
+
+    loss = physics_loss + 10.0 * initial_loss + 10.0 * boundary_loss
+    loss.backward()
+    optimizer.step()
+
+    if epoch % 600 == 0:
+        print(
+            f"epoch={epoch:4d} total={loss.item():.3e} "
+            f"physics={physics_loss.item():.3e}"
+        )
+
+# Validate at t = 0.5.
+x_test = torch.linspace(0.0, 1.0, 300).reshape(-1, 1)
+t_test = torch.full_like(x_test, 0.5)
+test_coordinates = torch.cat([x_test, t_test], dim=1)
+with torch.no_grad():
+    prediction = model(test_coordinates)
+    exact = torch.exp(-ALPHA * math.pi**2 * t_test) * torch.sin(math.pi * x_test)
+
+print("MAE at t=0.5:", torch.mean(torch.abs(prediction - exact)).item())
+
+plt.figure(figsize=(8, 5))
+plt.plot(x_test.numpy(), exact.numpy(), label="Exact")
+plt.plot(x_test.numpy(), prediction.numpy(), "--", label="PhysicsNeMo PINN")
+plt.xlabel("x")
+plt.ylabel("u(x, 0.5)")
+plt.title("PhysicsNeMo: One-Dimensional Heat Equation")
+plt.grid(True)
+plt.legend()
+plt.show()
+```
+
+---
+
+## Lesson 7: Nonlinear PDE
 
 Solve Burgers equation.
 
-### Lesson 8: Inverse problem
+### Problem
 
-Estimate an unknown coefficient.
+$$
+u_t+u u_x-\nu u_{xx}=0
+$$
+
+
+with:
+
+$$
+u(x,0)=-\sin(\pi x), \qquad u(-1,t)=u(1,t)=0
+$$
+
+
+### Complete CPU code
+
+```python
+import math
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+VISCOSITY = 0.01 / math.pi
+
+
+class BurgersEquation(PDE):
+    def __init__(self, viscosity: float) -> None:
+        self.dim = 2
+        x = Symbol("x")
+        t = Symbol("t")
+        u = Function("u")(x, t)
+        self.equations = {
+            "burgers": u.diff(t) + u * u.diff(x) - viscosity * u.diff(x, 2),
+        }
+
+
+class BurgersNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(2, 80),
+            nn.Tanh(),
+            nn.Linear(80, 80),
+            nn.Tanh(),
+            nn.Linear(80, 80),
+            nn.Tanh(),
+            nn.Linear(80, 1),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        return self.net(coordinates)
+
+
+def sample_interior(count: int) -> torch.Tensor:
+    x = -1.0 + 2.0 * torch.rand((count, 1), device=device)
+    t = torch.rand((count, 1), device=device)
+    coordinates = torch.cat([x, t], dim=1)
+    coordinates.requires_grad_(True)
+    return coordinates
+
+
+equation = BurgersEquation(VISCOSITY)
+informer = PhysicsInformer(
+    required_outputs=["burgers"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = BurgersNetwork().to(device)
+optimizer = torch.optim.Adam(model.parameters(), lr=8e-4)
+
+for epoch in range(8001):
+    optimizer.zero_grad()
+
+    # Interior residual.
+    interior = sample_interior(768)
+    u_interior = model(interior)
+    residual = informer.forward({
+        "coordinates": interior,
+        "u": u_interior,
+    })["burgers"]
+    physics_loss = torch.mean(residual**2)
+
+    # Initial condition.
+    x_initial = -1.0 + 2.0 * torch.rand((192, 1), device=device)
+    initial_coordinates = torch.cat(
+        [x_initial, torch.zeros_like(x_initial)], dim=1
+    )
+    initial_target = -torch.sin(math.pi * x_initial)
+    initial_loss = torch.mean((model(initial_coordinates) - initial_target) ** 2)
+
+    # Boundary conditions.
+    t_boundary = torch.rand((192, 1), device=device)
+    left = torch.cat([-torch.ones_like(t_boundary), t_boundary], dim=1)
+    right = torch.cat([torch.ones_like(t_boundary), t_boundary], dim=1)
+    boundary_loss = torch.mean(model(left) ** 2) + torch.mean(model(right) ** 2)
+
+    loss = physics_loss + 15.0 * initial_loss + 10.0 * boundary_loss
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    optimizer.step()
+
+    if epoch % 800 == 0:
+        print(f"epoch={epoch:4d} loss={loss.item():.3e}")
+
+# Inference at selected times.
+x_test = torch.linspace(-1.0, 1.0, 400).reshape(-1, 1)
+plt.figure(figsize=(8, 5))
+for time_value in [0.0, 0.25, 0.50, 0.75, 1.0]:
+    t_test = torch.full_like(x_test, time_value)
+    coordinates = torch.cat([x_test, t_test], dim=1)
+    with torch.no_grad():
+        prediction = model(coordinates)
+    plt.plot(x_test.numpy(), prediction.numpy(), label=f"t={time_value:.2f}")
+
+plt.xlabel("x")
+plt.ylabel("u(x,t)")
+plt.title("PhysicsNeMo: Burgers Equation")
+plt.grid(True)
+plt.legend()
+plt.show()
+```
+
+> Burgers equation is substantially harder than the earlier examples. On CPU, begin with the settings shown. For higher accuracy, use more collocation points, residual-based adaptive sampling, Adam followed by L-BFGS, and a numerical reference solution.
 
 ---
+
+## Lesson 8: Inverse problem
+
+Estimate an unknown coefficient from sparse observations.
+
+### Problem
+
+$$
+\frac{du}{dt}+k u=0
+$$
+
+
+Both the state `u(t)` and the unknown positive coefficient `k` are learned.
+
+### Complete CPU code
+
+```python
+import matplotlib.pyplot as plt
+import torch
+from sympy import Function, Symbol
+from torch import nn
+from physicsnemo.sym.eq.pde import PDE
+from physicsnemo.sym.eq.phy_informer import PhysicsInformer
+
+
+torch.manual_seed(42)
+device = torch.device("cpu")
+TRUE_K = 0.65
+
+
+class InverseDecayEquation(PDE):
+    """The field k(t) is supplied by the model as a trainable positive value."""
+
+    def __init__(self) -> None:
+        self.dim = 1
+        t = Symbol("t")
+        u = Function("u")(t)
+        k = Function("k")(t)
+        self.equations = {
+            "inverse_decay": u.diff(t) + k * u,
+        }
+
+
+class StateNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(1, 48),
+            nn.Tanh(),
+            nn.Linear(48, 48),
+            nn.Tanh(),
+            nn.Linear(48, 48),
+            nn.Tanh(),
+            nn.Linear(48, 1),
+        )
+
+    def forward(self, coordinates: torch.Tensor) -> torch.Tensor:
+        return self.net(coordinates)
+
+
+equation = InverseDecayEquation()
+informer = PhysicsInformer(
+    required_outputs=["inverse_decay"],
+    equations=equation,
+    grad_method="autodiff",
+    device=device,
+)
+
+model = StateNetwork().to(device)
+raw_k = nn.Parameter(torch.tensor(-0.2, device=device))
+optimizer = torch.optim.Adam(
+    list(model.parameters()) + [raw_k],
+    lr=1e-3,
+)
+
+# Collocation points.
+t = torch.linspace(0.0, 5.0, 160, device=device).reshape(-1, 1)
+t.requires_grad_(True)
+
+# Sparse noisy measurements generated for this instructional example.
+t_data = torch.tensor(
+    [[0.0], [0.5], [1.2], [2.0], [3.0], [4.0], [5.0]],
+    device=device,
+)
+noise = 0.01 * torch.randn_like(t_data)
+u_data = torch.exp(-TRUE_K * t_data) + noise
+
+for epoch in range(6001):
+    optimizer.zero_grad()
+
+    # Softplus guarantees k > 0.
+    k_scalar = torch.nn.functional.softplus(raw_k)
+    k_field = k_scalar.expand_as(t)
+
+    u = model(t)
+    residual = informer.forward({
+        "coordinates": t,
+        "u": u,
+        "k": k_field,
+    })["inverse_decay"]
+
+    physics_loss = torch.mean(residual**2)
+    data_loss = torch.mean((model(t_data) - u_data) ** 2)
+    initial_loss = torch.mean((model(torch.zeros((1, 1))) - 1.0) ** 2)
+    loss = physics_loss + 20.0 * data_loss + 10.0 * initial_loss
+
+    loss.backward()
+    optimizer.step()
+
+    if epoch % 600 == 0:
+        print(
+            f"epoch={epoch:4d} loss={loss.item():.3e} "
+            f"estimated_k={k_scalar.item():.5f}"
+        )
+
+estimated_k = torch.nn.functional.softplus(raw_k).item()
+print("True k:", TRUE_K)
+print("Estimated k:", estimated_k)
+print("Absolute parameter error:", abs(TRUE_K - estimated_k))
+
+# Validation and inference.
+t_test = torch.linspace(0.0, 5.0, 300).reshape(-1, 1)
+with torch.no_grad():
+    prediction = model(t_test)
+    exact = torch.exp(-TRUE_K * t_test)
+
+plt.figure(figsize=(8, 5))
+plt.plot(t_test.numpy(), exact.numpy(), label="True solution")
+plt.plot(t_test.numpy(), prediction.numpy(), "--", label="Inverse PINN")
+plt.scatter(t_data.numpy(), u_data.numpy(), label="Noisy observations")
+plt.xlabel("t")
+plt.ylabel("u(t)")
+plt.title(f"PhysicsNeMo Inverse Problem: estimated k={estimated_k:.4f}")
+plt.grid(True)
+plt.legend()
+plt.show()
+```
+
+### What the inverse code is doing
+
+1. `raw_k` is a trainable scalar.
+2. `softplus(raw_k)` forces the physical coefficient to remain positive.
+3. `k_field` broadcasts the scalar over all collocation points.
+4. The physics loss enforces the differential equation.
+5. The data loss connects the inferred parameter to observations.
+6. The initial-condition loss anchors the state trajectory.
+7. Validation compares the learned trajectory and parameter with the known synthetic truth.
+
+---
+
+## Section 11 checklist
+
+After completing these lessons, you should be able to:
+
+- define a custom symbolic PhysicsNeMo equation;
+- inspect `PhysicsInformer.required_inputs`;
+- train standard PyTorch networks with PhysicsNeMo residuals;
+- impose initial and boundary constraints explicitly;
+- solve linear and nonlinear ODEs;
+- solve coupled ODE systems;
+- solve linear and nonlinear PDEs;
+- estimate an unknown physical parameter;
+- validate and visualize model predictions;
+- run every example on CPU.
+
 
 # 12. BioNeMo Learning Track
 
@@ -1229,11 +2278,13 @@ $$
 \frac{du}{dt}+u=0
 $$
 
+
 ## ODE 2: Logistic growth
 
 $$
 \frac{dN}{dt}=rN\left(1-\frac{N}{K}\right)
 $$
+
 
 Topics:
 
@@ -1249,11 +2300,13 @@ $$
 \frac{d^2x}{dt^2}+\omega^2x=0
 $$
 
+
 ## ODE 4: Damped oscillator
 
 $$
 m\frac{d^2x}{dt^2}+c\frac{dx}{dt}+kx=0
 $$
+
 
 ## ODE 5: Lotka-Volterra
 
@@ -1261,9 +2314,11 @@ $$
 \frac{dx}{dt}=\alpha x-\beta xy
 $$
 
+
 $$
 \frac{dy}{dt}=\delta xy-\gamma y
 $$
+
 
 ## ODE 6: SIR model
 
@@ -1271,13 +2326,16 @@ $$
 \frac{dS}{dt}=-\beta\frac{SI}{N}
 $$
 
+
 $$
 \frac{dI}{dt}=\beta\frac{SI}{N}-\gamma I
 $$
 
+
 $$
 \frac{dR}{dt}=\gamma I
 $$
+
 
 ## ODE 7: Two-compartment pharmacokinetics
 
@@ -1287,11 +2345,13 @@ $$
 -k_{10}C_1-k_{12}C_1+k_{21}C_2
 $$
 
+
 $$
 \frac{dC_2}{dt}
 =
 k_{12}C_1-k_{21}C_2
 $$
+
 
 ## ODE 8: Michaelis-Menten kinetics
 
@@ -1300,6 +2360,7 @@ $$
 =
 -\frac{V_{max}S}{K_m+S}
 $$
+
 
 ## ODE 9: Gene regulation
 
@@ -1311,11 +2372,13 @@ $$
 \gamma_m m
 $$
 
+
 $$
 \frac{dp}{dt}
 =
 \beta m-\gamma_p p
 $$
+
 
 ## ODE 10: Stiff reaction system
 
@@ -1335,6 +2398,7 @@ $$
 \frac{d^2u}{dx^2}=f(x)
 $$
 
+
 ## PDE 2: Heat equation
 
 $$
@@ -1342,6 +2406,7 @@ $$
 =
 \alpha\frac{\partial^2u}{\partial x^2}
 $$
+
 
 ## PDE 3: Wave equation
 
@@ -1351,11 +2416,13 @@ $$
 c^2\frac{\partial^2u}{\partial x^2}
 $$
 
+
 ## PDE 4: Burgers equation
 
 $$
 u_t+uu_x-\nu u_{xx}=0
 $$
+
 
 ## PDE 5: Reaction-diffusion
 
@@ -1366,6 +2433,7 @@ D\frac{\partial^2C}{\partial x^2}
 -kC
 $$
 
+
 ## PDE 6: Fisher-KPP equation
 
 $$
@@ -1375,6 +2443,7 @@ D\nabla^2u
 +
 ru(1-u)
 $$
+
 
 ## PDE 7: Coupled tissue model
 
@@ -1388,11 +2457,13 @@ rn\left(1-\frac{n}{K}\right)
 \gamma Cn
 $$
 
+
 $$
 \frac{\partial C}{\partial t}
 =
 D_C\nabla^2C-k_CC
 $$
+
 
 ## PDE 8: Navier-Stokes
 
@@ -1411,6 +2482,7 @@ In an inverse problem, one or more parameters are unknown and learned from data.
 $$
 \frac{du}{dt}=-ku
 $$
+
 
 The parameter $k$ is unknown.
 
@@ -1579,6 +2651,7 @@ $$
 [-1,1]
 $$
 
+
 This often improves optimization.
 
 ## Nondimensionalization
@@ -1595,11 +2668,13 @@ $$
 u_\theta(t)=1+tN_\theta(t)
 $$
 
+
 This automatically satisfies:
 
 $$
 u_\theta(0)=1
 $$
+
 
 ## Fourier features
 
@@ -1634,6 +2709,7 @@ Physics constraint:
 $$
 \frac{dC}{dt}+kC=0
 $$
+
 
 The value of $k$ depends on the molecular representation.
 
@@ -3662,4 +4738,3 @@ You now have executable code for:
 - optional supported BioNeMo GPU setup;
 - GPU mixed precision and multi-GPU patterns;
 - tests, diagnostics, and model persistence.
-

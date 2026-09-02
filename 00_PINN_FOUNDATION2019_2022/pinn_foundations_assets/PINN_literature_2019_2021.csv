@@ -1,0 +1,44 @@
+year,authors,title,theme,venue,identifier
+2019,"Raissi, Perdikaris & Karniadakis",Physics-informed neural networks: A deep learning framework for solving forward and inverse problems involving nonlinear PDEs,Foundation,J. Computational Physics,10.1016/j.jcp.2018.10.045
+2019,"Pang, Lu & Karniadakis",fPINNs: Fractional physics-informed neural networks,Generalized equations,SIAM J. Scientific Computing,10.1137/18M1229845
+2019,Zhu et al.,Physics-constrained deep learning for high-dimensional surrogate modeling and uncertainty quantification without labeled data,Surrogates/UQ,J. Computational Physics,10.1016/j.jcp.2019.02.035
+2019,Yang & Perdikaris,Adversarial uncertainty quantification in physics-informed neural networks,Uncertainty,J. Computational Physics,10.1016/j.jcp.2019.05.027
+2019,Zhang et al.,Quantifying total uncertainty in physics-informed neural networks for forward and inverse stochastic problems,Uncertainty,J. Computational Physics,10.1016/j.jcp.2019.07.048
+2019,Lu et al.,DeepXDE: A deep learning library for solving differential equations (preprint),Software/adaptivity,arXiv:1907.04502,arXiv:1907.04502
+2019,"Kharazmi, Zhang & Karniadakis",Variational physics-informed neural networks for solving partial differential equations,Variational PINNs,arXiv:1912.00873,arXiv:1912.00873
+2019,Meng et al.,PPINN: Parareal physics-informed neural network for time-dependent PDEs (preprint),Time decomposition,arXiv:1909.10145,arXiv:1909.10145
+2019,"Dwivedi, Parashar & Srinivasan",Distributed physics-informed neural network for data-efficient solution to PDEs,Domain decomposition,arXiv:1907.08967,arXiv:1907.08967
+2020,"Mao, Jagtap & Karniadakis",Physics-informed neural networks for high-speed flows,Fluid mechanics,CMAME,10.1016/j.cma.2019.112789
+2020,"Jagtap, Kharazmi & Karniadakis",Conservative physics-informed neural networks on discrete domains for conservation laws,Domain decomposition,CMAME,10.1016/j.cma.2020.113028
+2020,Jagtap & Karniadakis,Extended physics-informed neural networks (XPINNs),Domain decomposition,Commun. Computational Physics,10.4208/cicp.OA-2020-0164
+2020,Meng et al.,PPINN: Parareal physics-informed neural network for time-dependent PDEs,Time decomposition,CMAME,10.1016/j.cma.2020.113250
+2020,"Raissi, Yazdani & Karniadakis",Hidden fluid mechanics: Learning velocity and pressure fields from flow visualizations,Inverse/data assimilation,Science,10.1126/science.aaw4741
+2020,Tartakovsky et al.,Physics-informed deep neural networks for learning parameters and constitutive relationships in subsurface flow,Inverse/data assimilation,Water Resources Research,10.1029/2019WR026731
+2020,He et al.,Physics-informed neural networks for multiphysics data assimilation with application to subsurface transport,Inverse/data assimilation,Advances in Water Resources,10.1016/j.advwatres.2020.103610
+2020,Kissas et al.,Machine learning in cardiovascular flows modeling: Predicting arterial blood pressure from 4D flow MRI,Biomedical flow,CMAME,10.1016/j.cma.2019.112623
+2020,Pang et al.,nPINNs: Nonlocal physics-informed neural networks for a parametrized nonlocal universal Laplacian,Generalized equations,J. Computational Physics,10.1016/j.jcp.2020.109760
+2020,"Shin, Darbon & Karniadakis",On the convergence of physics-informed neural networks for linear elliptic and parabolic PDEs,Theory,Commun. Computational Physics,10.4208/cicp.OA-2020-0193
+2020,"Wang, Teng & Perdikaris",Understanding and mitigating gradient pathologies in physics-informed neural networks (preprint),Optimization theory,arXiv:2001.04536,arXiv:2001.04536
+2020,"Wang, Yu & Perdikaris",When and why PINNs fail to train: A neural tangent kernel perspective (preprint),NTK theory,arXiv:2007.14527,arXiv:2007.14527
+2020,McClenny & Braga-Neto,Self-adaptive physics-informed neural networks using a soft attention mechanism,Adaptive weighting,arXiv:2009.04544,arXiv:2009.04544
+2020,"Yang, Meng & Karniadakis",B-PINNs: Bayesian physics-informed neural networks (preprint),Uncertainty,arXiv:2003.06097,arXiv:2003.06097
+2020,"Rao, Sun & Liu",Physics-informed deep learning for incompressible laminar flows,Fluid mechanics,Theor. Appl. Mech. Lett.,10.1016/j.taml.2020.01.039
+2021,Karniadakis et al.,Physics-informed machine learning,Review/foundation,Nature Reviews Physics,10.1038/s42254-021-00314-5
+2021,Lu et al.,DeepXDE: A deep learning library for solving differential equations,Software/adaptivity,SIAM Review,10.1137/19M1274067
+2021,"Yang, Meng & Karniadakis",B-PINNs: Bayesian physics-informed neural networks for forward and inverse PDEs with noisy data,Uncertainty,J. Computational Physics,10.1016/j.jcp.2020.109913
+2021,"Kharazmi, Zhang & Karniadakis",hp-VPINNs: Variational physics-informed neural networks with domain decomposition,Variational PINNs,CMAME,10.1016/j.cma.2020.113547
+2021,Sheng & Yang,PFNN: A penalty-free neural network method for second-order boundary-value problems,Hard constraints,J. Computational Physics,10.1016/j.jcp.2020.110085
+2021,Ji et al.,Stiff-PINN: Physics-informed neural network for stiff chemical kinetics,Stiff systems/model reduction,J. Physical Chemistry A,10.1021/acs.jpca.1c05102
+2021,"Wang, Teng & Perdikaris",Understanding and mitigating gradient flow pathologies in PINNs,Optimization theory,SIAM J. Scientific Computing,10.1137/20M1318043
+2021,"Wang, Yu & Perdikaris",When and why PINNs fail to train: A neural tangent kernel perspective,NTK theory,J. Computational Physics,10.1016/j.jcp.2021.110768
+2021,"Wang, Wang & Perdikaris",On the eigenvector bias of Fourier feature networks: Multi-scale PDEs with PINNs,Architecture/NTK,CMAME,10.1016/j.cma.2021.113938
+2021,"Shukla, Jagtap & Karniadakis",Parallel physics-informed neural networks via domain decomposition,Parallel/domain decomposition,J. Computational Physics,10.1016/j.jcp.2021.110683
+2021,Haghighat et al.,A physics-informed deep learning framework for inversion and surrogate modeling in solid mechanics,Solid mechanics,CMAME,10.1016/j.cma.2021.113741
+2021,Jin et al.,NSFnets: Physics-informed neural networks for incompressible Navier–Stokes equations,Fluid mechanics,J. Computational Physics,10.1016/j.jcp.2020.109951
+2021,Cai et al.,Flow over an espresso cup: Inferring 3-D velocity and pressure fields via PINNs,Experimental fluids,J. Fluid Mechanics,10.1017/jfm.2021.135
+2021,"Lou, Meng & Karniadakis",PINNs for forward and inverse flow problems via the Boltzmann–BGK formulation,Kinetic/multiscale flow,J. Computational Physics,10.1016/j.jcp.2021.110676
+2021,Yu et al.,Gradient-enhanced physics-informed neural networks for forward and inverse PDE problems,Residual enhancement,arXiv:2111.02801,arXiv:2111.02801
+2021,Zubov et al.,NeuralPDE: Automating PINNs with error approximations,Software/quadrature,arXiv:2107.09443,arXiv:2107.09443
+2021,Li et al.,Physics-Informed Neural Operator for Learning Partial Differential Equations,Operator learning,arXiv:2111.03794,arXiv:2111.03794
+2021,Lu et al.,Learning nonlinear operators via DeepONet,Operator learning,Nature Machine Intelligence,10.1038/s42256-021-00302-5
+2021,Hu et al.,When do XPINNs improve generalization?,Generalization/domain decomposition,arXiv:2109.09444,arXiv:2109.09444
